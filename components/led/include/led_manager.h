@@ -9,7 +9,7 @@
 
 class LedManager {
 public:
-    static constexpr uint16_t DEFAULT_MAX_LEN = 30;
+    static constexpr uint16_t DEFAULT_MAX_LEN = 350;
     static constexpr int      STRIP_COUNT     = 2;
 
     enum class Effect : uint8_t {

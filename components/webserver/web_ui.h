@@ -4,7 +4,7 @@ static const char WEB_UI_HTML[] = R"html(<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Clock Driver</title>
+<title>Lights Driver</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -116,7 +116,7 @@ html, body {
 #mobile-menu .mob-row label { font-size: 13px; color: var(--dim); min-width: 56px; }
 #mobile-menu .accent-dots { margin-left: 0; flex-wrap: wrap; }
 
-/* ── Time input: fix dark clock icon ── */
+/* ── Time input: fix dark lights icon ── */
 input[type=time] { color-scheme: dark; }
 html[data-theme="light"] input[type=time] { color-scheme: light; }
 
@@ -151,46 +151,6 @@ html[data-theme="light"] input[type=time] { color-scheme: light; }
   margin-bottom: 12px;
 }
 
-/* ── Time display ── */
-#big-time {
-  font-size: 52px; font-weight: 200; letter-spacing: -2px;
-  color: var(--a); line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-#big-date { font-size: 15px; color: var(--dim); margin-top: 4px; }
-.sntp-badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; padding: 3px 8px; border-radius: 20px;
-  margin-top: 8px;
-}
-.sntp-badge.ok { background: rgba(16,185,129,.15); color: var(--ok); }
-.sntp-badge.no { background: rgba(239,68,68,.12); color: var(--err); }
-
-/* ── Observed time input ── */
-.obs-row { display: flex; gap: 8px; align-items: center; }
-.set-progress { display: none; align-items: center; gap: 10px; margin-top: 10px; }
-.set-progress.visible { display: flex; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.spinner {
-  width: 18px; height: 18px; border-radius: 50%;
-  border: 2px solid var(--border); border-top-color: var(--a);
-  animation: spin .7s linear infinite; flex-shrink: 0;
-}
-.set-progress-text { font-size: 13px; color: var(--muted); flex: 1; }
-#obs-time {
-  flex: 1; padding: 8px 12px; border-radius: var(--radius-sm);
-  border: 1px solid var(--border); background: var(--surf2);
-  color: var(--text); font-size: 20px; font-weight: 300;
-  letter-spacing: 1px;
-}
-#obs-time:focus { outline: none; border-color: var(--a); }
-
-/* ── Timezone card ── */
-.tz-row { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--border); }
-.tz-row:last-child { border-bottom: none; }
-.tz-label { font-size: 11px; color: var(--muted); }
-.tz-val { font-size: 13px; font-family: monospace; color: var(--text); max-width: 65%; text-align: right; word-break: break-all; }
-
 /* ── Buttons ── */
 .btn {
   padding: 8px 16px; border-radius: var(--radius-sm);
@@ -207,10 +167,6 @@ html[data-theme="light"] input[type=time] { color-scheme: light; }
 .btn-secondary:hover { border-color: var(--bh); }
 .btn-sm { padding: 5px 12px; font-size: 12px; }
 .btn-full { width: 100%; }
-
-/* ── Fine-tune row ── */
-.tune-row { display: flex; gap: 8px; }
-.tune-row .btn { flex: 1; }
 
 /* ── Lights ── */
 .strip-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
@@ -304,10 +260,9 @@ input[type=range]::-webkit-slider-thumb {
 
 <!-- ── Top bar ─────────────────────────────────────────────────────────── -->
 <div id="topbar">
-  <span class="logo">&#9201; Clock</span>
+  <span class="logo">&#9201; Lights</span>
   <div id="nav-links" style="display:flex;align-items:center;gap:4px;">
-    <button class="nav-btn active" onclick="nav('clock')">Clock</button>
-    <button class="nav-btn" onclick="nav('lights')">Lights</button>
+    <button class="nav-btn active" onclick="nav('lights')">Lights</button>
     <button class="nav-btn" onclick="nav('info')">Info</button>
     <button class="nav-btn" onclick="nav('config')">Config</button>
   </div>
@@ -326,8 +281,7 @@ input[type=range]::-webkit-slider-thumb {
 
 <!-- ── Mobile dropdown ──────────────────────────────────────────────────── -->
 <div id="mobile-menu">
-  <button class="nav-btn active" onclick="nav('clock');closeMobileMenu()">Clock</button>
-  <button class="nav-btn" onclick="nav('lights');closeMobileMenu()">Lights</button>
+  <button class="nav-btn active" onclick="nav('lights');closeMobileMenu()">Lights</button>
   <button class="nav-btn" onclick="nav('info');closeMobileMenu()">Info</button>
   <button class="nav-btn" onclick="nav('config');closeMobileMenu()">Config</button>
   <div class="mob-divider"></div>
@@ -349,74 +303,12 @@ input[type=range]::-webkit-slider-thumb {
 
 <div id="main">
 
-<!-- ════════════════════════════════════ CLOCK ═══════════════════════════ -->
-<div id="sec-clock" class="section active">
-
-  <!-- Time display -->
-  <div class="card">
-    <div id="big-time">--:--:-- --</div>
-    <div id="big-date">---</div>
-    <span id="sntp-badge" class="sntp-badge no">&#9679; Internet not synced</span>
-  </div>
-
-  <!-- Observed Clock Position -->
-  <div class="card">
-    <div class="card-title">Observed Clock Position</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">
-      Look at the clock hands and enter the time the hands currently show, then press the button.
-    </p>
-    <div class="obs-row">
-      <input type="time" id="obs-time" value="12:00">
-      <button class="btn btn-primary" id="set-time-btn" onclick="doSetTime()">Set Clock to Actual Time</button>
-    </div>
-    <div class="set-progress" id="set-progress">
-      <div class="spinner"></div>
-      <span class="set-progress-text">Setting clock hands&hellip;</span>
-      <button class="btn btn-secondary" onclick="doCancelSet()">Cancel</button>
-    </div>
-  </div>
-
-  <!-- Fine Tune -->
-  <div class="card">
-    <div class="card-title">Fine Tune</div>
-    <div class="tune-row" style="margin-bottom:8px;">
-      <button class="btn btn-secondary" onclick="post('min-bwd')">&#8676; 1 Min Back</button>
-      <button class="btn btn-secondary" onclick="post('min-fwd')">1 Min Fwd &#8677;</button>
-    </div>
-    <div class="tune-row">
-      <button class="btn btn-secondary" onclick="post('step-bwd')">&#8592; Step Back</button>
-      <button class="btn btn-secondary" onclick="post('step-fwd')">Step Forward &#8594;</button>
-    </div>
-  </div>
-
-  <!-- Timezone -->
-  <div class="card">
-    <div class="card-title">Timezone</div>
-    <div class="tz-row"><span class="tz-label">IANA</span><span class="tz-val" id="tz-iana">—</span></div>
-    <div class="tz-row"><span class="tz-label">POSIX</span><span class="tz-val" id="tz-posix">—</span></div>
-    <div class="tz-row"><span class="tz-label">Location</span><span class="tz-val" id="tz-loc">—</span></div>
-  </div>
-
-</div><!-- /sec-clock -->
-
 <!-- ════════════════════════════════════ LIGHTS ══════════════════════════ -->
-<div id="sec-lights" class="section">
-
-  <!-- Strip target selector -->
-  <div class="card" style="padding:10px 14px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;">
-      <span style="font-size:12px;font-weight:600;color:var(--dim);">APPLY TO</span>
-      <div class="dir-toggle">
-        <button class="dir-opt active" id="tgt-ring" onclick="setLightTarget(1)">Ring</button>
-        <button class="dir-opt"        id="tgt-base" onclick="setLightTarget(2)">Base</button>
-        <button class="dir-opt"        id="tgt-both" onclick="setLightTarget(0)">Both</button>
-      </div>
-    </div>
-  </div>
+<div id="sec-lights" class="section active">
 
   <div class="card" id="strip1-card">
     <div class="strip-header">
-      <span class="strip-name">Ring</span>
+      <span class="strip-name">Lights</span>
       <div style="display:flex;align-items:center;gap:8px;">
         <span class="swatch-box" id="sw1"></span>
         <span class="effect-info" id="fx1-label">—</span>
@@ -442,34 +334,6 @@ input[type=range]::-webkit-slider-thumb {
     <div class="color-grid" id="color1-grid"></div>
   </div>
 
-  <!-- Base -->
-  <div class="card" id="strip2-card">
-    <div class="strip-header">
-      <span class="strip-name">Base</span>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span class="swatch-box" id="sw2"></span>
-        <span class="effect-info" id="fx2-label">—</span>
-        <span class="pct-info" id="bright2-pct">—</span>
-      </div>
-    </div>
-    <div class="slider-row">
-      <label>Brightness</label>
-      <input type="range" id="bright2" min="0" max="255" value="128"
-             onpointerdown="sliderActive[1]=true" oninput="doBright(2,this.value)">
-    </div>
-    <div class="card-title" style="margin-top:10px;">Effects</div>
-    <div class="fx-grid" id="fx2-grid">
-      <button class="fx-btn" data-fx2="Static"   onclick="doFx(2,'static')">Static</button>
-      <button class="fx-btn" data-fx2="Breathe"  onclick="doFx(2,'breathe')">Breathe</button>
-      <button class="fx-btn" data-fx2="Rainbow"  onclick="doFx(2,'rainbow')">Rainbow</button>
-      <button class="fx-btn" data-fx2="Chase"    onclick="doFx(2,'chase')">Chase</button>
-      <button class="fx-btn" data-fx2="Sparkle"  onclick="doFx(2,'sparkle')">Sparkle</button>
-      <button class="fx-btn" data-fx2="Wipe"     onclick="doFx(2,'wipe')">Wipe</button>
-      <button class="fx-btn" data-fx2="Comet"    onclick="doFx(2,'comet')">Comet</button>
-    </div>
-    <div class="card-title" style="margin-top:10px;">Colour</div>
-    <div class="color-grid" id="color2-grid"></div>
-  </div>
 
 </div><!-- /sec-lights -->
 
@@ -483,7 +347,6 @@ input[type=range]::-webkit-slider-thumb {
       <div class="info-item"><div class="info-label">Firmware</div><div class="info-val" id="inf-fw">—</div></div>
       <div class="info-item"><div class="info-label">Uptime</div><div class="info-val" id="inf-uptime">—</div></div>
       <div class="info-item"><div class="info-label">Free Heap</div><div class="info-val" id="inf-heap">—</div></div>
-      <div class="info-item"><div class="info-label">Display Min</div><div class="info-val" id="inf-dmin">—</div></div>
     </div>
   </div>
 
@@ -495,8 +358,8 @@ input[type=range]::-webkit-slider-thumb {
       <div class="info-item"><div class="info-label">Signal (RSSI)</div><div class="info-val" id="inf-rssi">—</div></div>
       <div class="info-item"><div class="info-label">Local IP</div><div class="info-val" id="inf-lip">—</div></div>
       <div class="info-item"><div class="info-label">Gateway</div><div class="info-val" id="inf-gw">—</div></div>
-      <div class="info-item wide"><div class="info-label">Internet IP</div><div class="info-val" id="inf-eip">—</div></div>
-      <div class="info-item wide"><div class="info-label">Location</div><div class="info-val" id="inf-geo">—</div></div>
+      <div class="info-item"><div class="info-label">Internet IP</div><div class="info-val" id="inf-eip">—</div></div>
+      <div class="info-item"><div class="info-label">Location</div><div class="info-val" id="inf-geo">—</div></div>
     </div>
   </div>
 
@@ -505,15 +368,15 @@ input[type=range]::-webkit-slider-thumb {
     <div class="card-title">LED Strips</div>
     <div class="info-grid">
       <div class="info-item">
-        <div class="info-label">Ring</div>
+        <div class="info-label">Left</div>
         <div class="info-val" id="inf-s1" style="display:flex;align-items:center;gap:6px;"></div>
       </div>
       <div class="info-item">
-        <div class="info-label">Base</div>
+        <div class="info-label">Right</div>
         <div class="info-val" id="inf-s2" style="display:flex;align-items:center;gap:6px;"></div>
       </div>
-      <div class="info-item"><div class="info-label">Ring LEDs</div><div class="info-val" id="inf-s1len">—</div></div>
-      <div class="info-item"><div class="info-label">Base LEDs</div><div class="info-val" id="inf-s2len">—</div></div>
+      <div class="info-item"><div class="info-label">Left LEDs</div><div class="info-val" id="inf-s1len">—</div></div>
+      <div class="info-item"><div class="info-label">Right LEDs</div><div class="info-val" id="inf-s2len">—</div></div>
     </div>
   </div>
 
@@ -523,32 +386,22 @@ input[type=range]::-webkit-slider-thumb {
     <table class="pin-table">
       <thead><tr><th>GPIO</th><th>Function</th></tr></thead>
       <tbody>
-        <tr><td class="pin-num">6</td><td>Stepper IN4</td></tr>
-        <tr><td class="pin-num">7</td><td>Stepper IN3</td></tr>
-        <tr><td class="pin-num">8</td><td>I2C SDA (Display + Encoder)</td></tr>
-        <tr><td class="pin-num">9</td><td>I2C SCL (Display + Encoder)</td></tr>
+        <tr><td class="pin-num">8</td><td>I2C SDA (Display)</td></tr>
+        <tr><td class="pin-num">9</td><td>I2C SCL (Display)</td></tr>
         <tr><td class="pin-num">10</td><td>Button A (Menu Prev)</td></tr>
         <tr><td class="pin-num">11</td><td>Button B (Menu Next)</td></tr>
-        <tr><td class="pin-num">13</td><td>Sensor LED (output)</td></tr>
-        <tr><td class="pin-num">14</td><td>Sensor LDR (ADC input)</td></tr>
-        <tr><td class="pin-num">15</td><td>Stepper IN2</td></tr>
-        <tr><td class="pin-num">16</td><td>Stepper IN1</td></tr>
-        <tr><td class="pin-num">LED1</td><td>WS2812B Ring Data</td></tr>
-        <tr><td class="pin-num">LED2</td><td>WS2812B Base Data</td></tr>
+        <tr><td class="pin-num">LED1</td><td>WS2812B Left Data</td></tr>
+        <tr><td class="pin-num">LED2</td><td>WS2812B Right Data</td></tr>
       </tbody>
     </table>
   </div>
 
-  <!-- Sensor -->
+  <!-- Timezone -->
   <div class="card">
-    <div class="card-title">Sensor</div>
+    <div class="card-title">Timezone</div>
     <div class="info-grid">
-      <div class="info-item"><div class="info-label">Slot Offset</div><div class="info-val" id="inf-offset">—</div></div>
-      <div class="info-item"><div class="info-label">Dark Mean / Threshold</div><div class="info-val" id="inf-sen-thr">—</div></div>
-      <div class="info-item"><div class="info-label">Last ADC Reading</div><div class="info-val" id="inf-adc">—</div></div>
-      <div class="info-item"><div class="info-label">Motor Direction</div><div class="info-val" id="inf-mdir">—</div></div>
       <div class="info-item"><div class="info-label">IANA TZ</div><div class="info-val" id="inf-tz-iana">—</div></div>
-      <div class="info-item wide"><div class="info-label">POSIX TZ</div><div class="info-val" id="inf-tz-posix" style="font-size:12px;font-family:monospace;">—</div></div>
+      <div class="info-item"><div class="info-label">POSIX TZ</div><div class="info-val" id="inf-tz-posix" style="font-size:12px;font-family:monospace;">—</div></div>
     </div>
   </div>
 
@@ -561,102 +414,15 @@ input[type=range]::-webkit-slider-thumb {
   <div class="card">
     <div class="card-title">LED Strip Lengths</div>
     <div class="cfg-row">
-      <label>Ring LED count</label>
+      <label>Left LED count</label>
       <input type="number" id="cfg-s1len" min="1" max="300" value="24">
       <button class="btn btn-secondary btn-sm" onclick="applyLen(1)">Apply</button>
     </div>
     <div class="cfg-row">
-      <label>Base LED count</label>
+      <label>Right LED count</label>
       <input type="number" id="cfg-s2len" min="1" max="300" value="6">
       <button class="btn btn-secondary btn-sm" onclick="applyLen(2)">Apply</button>
     </div>
-  </div>
-
-  <!-- Motor Direction -->
-  <div class="card">
-    <div class="card-title">Motor Direction</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Select Normal if the clock hands advance clockwise, or Reverse if they go counter-clockwise.</p>
-    <div class="dir-toggle">
-      <button class="dir-opt active" id="dir-norm" onclick="setDir(false)">Normal</button>
-      <button class="dir-opt"        id="dir-rev"  onclick="setDir(true)">Reverse</button>
-    </div>
-  </div>
-
-  <!-- Sensor Calibration -->
-  <div class="card">
-    <div class="card-title">Sensor Calibration</div>
-
-    <!-- Step 1: Background -->
-    <div style="margin-bottom:14px;">
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Step 1 — Background Sample</div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Advances the ring ~10 minutes while sampling the sensor across multiple positions. Sets the detection threshold. Takes ~12 seconds.</p>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn btn-secondary btn-sm" onclick="doCalibrateSafe()">Sample Background</button>
-        <span style="font-size:11px;color:var(--muted);" id="cal-bg-result"></span>
-      </div>
-    </div>
-
-    <hr style="border:none;border-top:1px solid var(--border);margin:0 0 14px;">
-
-    <!-- Step 2: Offset -->
-    <div>
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Step 2 — Slot Offset</div>
-
-      <!-- IDLE -->
-      <div id="cal-idle">
-        <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">The clock steps forward until the sensor slot triggers, then you step the hand to exactly 12:00 and save.</p>
-        <button class="btn btn-secondary btn-sm" onclick="startOffsetCal()">Find Slot &#9654;</button>
-      </div>
-
-      <!-- MOVING -->
-      <div id="cal-moving" style="display:none;">
-        <p style="font-size:12px;color:var(--muted);">Searching for slot&hellip;</p>
-      </div>
-
-      <!-- FOUND -->
-      <div id="cal-found" style="display:none;">
-        <p style="font-size:12px;margin-bottom:10px;">Slot found. Step the hand to exactly <strong>12:00</strong>, then save.</p>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <button class="btn btn-secondary" style="flex:1;" onclick="post('step-bwd')">&#9664; Back</button>
-          <button class="btn btn-secondary" style="flex:1;" onclick="post('step-fwd')">Fwd &#9654;</button>
-        </div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">
-          Steps from slot: <span id="cal-steps-val">0</span>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary btn-sm" style="flex:1;" onclick="finishOffsetCal()">Save Offset</button>
-          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="abortOffsetCal()">Cancel</button>
-        </div>
-      </div>
-
-      <!-- NOT FOUND -->
-      <div id="cal-notfound" style="display:none;">
-        <p style="font-size:12px;color:#e87c7c;margin-bottom:8px;">Slot not found. Check wiring and background threshold, then try again.</p>
-        <button class="btn btn-secondary btn-sm" onclick="startOffsetCal()">Try Again</button>
-      </div>
-
-      <div style="font-size:11px;color:var(--muted);margin-top:12px;">
-        Saved offset: <span id="cal-saved-offset">—</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Motor Speed -->
-  <div class="card">
-    <div class="card-title">Motor Speed</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">
-      Lower delay = faster &amp; noisier. Higher = slower &amp; quieter. Default: 2000 µs/step.
-    </p>
-    <div class="slider-row">
-      <label>Step delay</label>
-      <input type="range" id="cfg-step-delay" min="900" max="3000" value="2000"
-             oninput="updateSpeedLabel(this.value)">
-    </div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
-      <span id="cfg-step-label">2000 µs/step</span>
-      &nbsp;·&nbsp; <span id="cfg-step-hz">—</span>
-    </div>
-    <button class="btn btn-secondary btn-sm" onclick="saveSpeed()">Save Speed</button>
   </div>
 
   <!-- Timezone Override -->
@@ -678,11 +444,11 @@ input[type=range]::-webkit-slider-thumb {
   <div class="card">
     <div class="card-title">Device Hostname</div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">
-      Access this device at <span id="cfg-mdns-display" style="color:var(--a);font-family:monospace;">clock_xxxx.local</span>.
+      Access this device at <span id="cfg-mdns-display" style="color:var(--a);font-family:monospace;">lights_xxxx.local</span>.
       Changes take effect immediately &mdash; no restart required.
     </p>
     <div class="cfg-row">
-      <input type="text" id="cfg-mdns" placeholder="clock_xxxx" autocomplete="off"
+      <input type="text" id="cfg-mdns" placeholder="lights_xxxx" autocomplete="off"
              style="flex:1;padding:6px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);
                     background:var(--surf2);color:var(--text);font-size:13px;font-family:monospace;">
       <button class="btn btn-secondary btn-sm" onclick="saveMdnsHostname()">Save</button>
@@ -777,7 +543,7 @@ const COLORS = [
 ];
 
 // ── State ────────────────────────────────────────────────────────────────────
-let brightTimer1 = null, brightTimer2 = null;
+let brightTimer1 = null;
 let lastData = {};
 
 // Config fields that require explicit Save/Apply should only be populated
@@ -910,47 +676,7 @@ function setAutoUpdate(val) {
   });
 }
 
-// ── Clock commands ───────────────────────────────────────────────────────────
-function showSetProgress(visible) {
-  const prog = document.getElementById('set-progress');
-  const btn  = document.getElementById('set-time-btn');
-  if (visible) {
-    prog.classList.add('visible');
-    btn.disabled = true;
-  } else {
-    prog.classList.remove('visible');
-    btn.disabled = false;
-  }
-}
-
-function doCancelSet() {
-  post('cancel-set').then(() => {
-    showSetProgress(false);
-    toast('Move cancelled');
-  }).catch(() => showSetProgress(false));
-}
-
-function doSetTime() {
-  const val = document.getElementById('obs-time').value; // "HH:MM"
-  if (!val) { toast('Enter observed time', 'err'); return; }
-  const parts = val.split(':');
-  const observed_hour = parseInt(parts[0], 10) % 12;
-  const observed_min  = parseInt(parts[1], 10);
-  post('set-time', {observed_hour, observed_min}).then(() => {
-    showSetProgress(true);
-  });
-}
-
 // ── Lights ───────────────────────────────────────────────────────────────────
-// lightTarget: 1=Ring, 2=Base, 0=Both
-let lightTarget = 1;
-function setLightTarget(t) {
-  lightTarget = t;
-  document.getElementById('tgt-ring').classList.toggle('active', t === 1);
-  document.getElementById('tgt-base').classList.toggle('active', t === 2);
-  document.getElementById('tgt-both').classList.toggle('active', t === 0);
-}
-
 function buildColorGrid(n) {
   const grid = document.getElementById('color' + n + '-grid');
   grid.innerHTML = '';
@@ -966,47 +692,20 @@ function buildColorGrid(n) {
 }
 
 function doColor(n, r, g, b, el) {
-  const tgt = lightTarget === 0 ? 0 : n;  // 0 = both
-  if (tgt === 0) {
-    // Highlight matching swatch in both grids
-    [1, 2].forEach(m => {
-      document.querySelectorAll('#color' + m + '-grid .color-swatch').forEach(sw => {
-        const c = COLORS[parseInt(sw.dataset.idx)];
-        sw.classList.toggle('active', !!(c && c.r === r && c.g === g && c.b === b));
-      });
-    });
-    post('led-color', {r, g, b});
-  } else {
-    document.querySelectorAll('#color' + tgt + '-grid .color-swatch').forEach(s => s.classList.remove('active'));
-    if (el) el.classList.add('active');
-    post('led' + tgt + '-color', {r, g, b});
-  }
+  document.querySelectorAll('#color' + n + '-grid .color-swatch').forEach(s => s.classList.remove('active'));
+  if (el) el.classList.add('active');
+  post('led' + n + '-color', {r, g, b});
 }
 
 function doFx(n, fx) {
-  const tgt = lightTarget === 0 ? '' : n;  // '' prefix = both
-  post('led' + tgt + '-' + fx);
+  post('led' + n + '-' + fx);
 }
 
 function doBright(n, val) {
   val = parseInt(val);
-  const pct = Math.round(val / 255 * 100) + '%';
-  const tgt = lightTarget === 0 ? 0 : n;
-  if (tgt === 0) {
-    // Mirror value to both sliders/labels immediately
-    [1, 2].forEach(m => {
-      if (!sliderActive[m - 1]) document.getElementById('bright' + m).value = val;
-      document.getElementById('bright' + m + '-pct').textContent = pct;
-    });
-    clearTimeout(brightTimer1); clearTimeout(brightTimer2);
-    const t = setTimeout(() => post('led-bright', {brightness: val}), 80);
-    brightTimer1 = brightTimer2 = t;
-  } else {
-    document.getElementById('bright' + tgt + '-pct').textContent = pct;
-    clearTimeout(tgt === 1 ? brightTimer1 : brightTimer2);
-    const t = setTimeout(() => post('led' + tgt + '-bright', {brightness: val}), 80);
-    if (tgt === 1) brightTimer1 = t; else brightTimer2 = t;
-  }
+  document.getElementById('bright' + n + '-pct').textContent = Math.round(val / 255 * 100) + '%';
+  clearTimeout(brightTimer1);
+  brightTimer1 = setTimeout(() => post('led' + n + '-bright', {brightness: val}), 80);
 }
 
 function applyStrip(n, s) {
@@ -1043,17 +742,6 @@ function applyLen(n) {
   postCfg(body);
 }
 
-function setDir(rev) {
-  document.getElementById('dir-norm').classList.toggle('active', !rev);
-  document.getElementById('dir-rev').classList.toggle('active', rev);
-  postCfg({motor_reverse: rev});
-}
-
-function doCalibrateSafe() {
-  document.getElementById('cal-bg-result').textContent = 'Sampling… (~12 s)';
-  post('calibrate-safe');
-}
-
 function doReadSensor() {
   post('read-sensor').then(() => {
     // last_sensor_adc updates via WebSocket within 1s; force a status fetch now
@@ -1077,7 +765,7 @@ function doSensorScan() {
         clearInterval(scanPollTimer);
         scanPollTimer = null;
         btn.disabled = false;
-        btn.textContent = 'Scan Ring (20 min)';
+        btn.textContent = 'Scan Left (20 min)';
         renderScanResults(d);
       }
     }).catch(() => {});
@@ -1102,37 +790,6 @@ function renderScanResults(d) {
              (trig ? 'YES <<< ' : 'no      ') + '|' + bar + '\n';
   });
   document.getElementById('diag-scan-table').textContent = lines;
-}
-
-function showCalPhase(phase) {
-  document.getElementById('cal-idle').style.display     = phase === 'idle'      ? '' : 'none';
-  document.getElementById('cal-moving').style.display   = phase === 'moving'    ? '' : 'none';
-  document.getElementById('cal-found').style.display    = phase === 'found'     ? '' : 'none';
-  document.getElementById('cal-notfound').style.display = phase === 'not_found' ? '' : 'none';
-}
-
-function startOffsetCal() {
-  showCalPhase('moving');
-  post('start-offset-cal');
-}
-
-function finishOffsetCal() {
-  post('finish-offset-cal').then(() => toast('Offset saved'));
-}
-
-function abortOffsetCal() {
-  post('abort-offset-cal').then(() => showCalPhase('idle'));
-}
-
-function updateSpeedLabel(v) {
-  v = parseInt(v);
-  const hz = (1e6 / v).toFixed(1);
-  document.getElementById('cfg-step-label').textContent = v + ' µs/step';
-  document.getElementById('cfg-step-hz').textContent = hz + ' steps/s';
-}
-function saveSpeed() {
-  const v = parseInt(document.getElementById('cfg-step-delay').value);
-  postCfg({step_delay_us: v}).then(() => toast('Motor speed saved'));
 }
 
 function saveTz() {
@@ -1180,26 +837,9 @@ function fmtHeap(b) {
 function applyData(d) {
   lastData = d;
 
-  // Clock section
-  setText('big-time', d.time || '--:--:--');
-  setText('big-date', d.date || '---');
-  const badge = document.getElementById('sntp-badge');
-  if (d.sntp) {
-    badge.className = 'sntp-badge ok';
-    badge.textContent = '\u25cf Internet synced';
-  } else {
-    badge.className = 'sntp-badge no';
-    badge.textContent = '\u25cf Internet not synced';
-  }
-  setText('tz-iana', d.iana_tz || '—');
-  setText('tz-posix', d.posix_tz || '—');
-  const loc = [d.city, d.region].filter(Boolean).join(', ');
-  setText('tz-loc', loc || '—');
-
   // Lights
   if (d.leds) {
     if (d.leds.strip1) applyStrip(1, d.leds.strip1);
-    if (d.leds.strip2) applyStrip(2, d.leds.strip2);
   }
 
   // Info section
@@ -1210,16 +850,6 @@ function applyData(d) {
     applyData.mdnsDone = true;
     document.getElementById('cfg-mdns').value = d.mdns_hostname;
     setText('cfg-mdns-display', d.mdns_hostname + '.local');
-  }
-
-  // Motor busy — auto-hide progress indicator when motor finishes
-  if (d.motor_busy !== undefined) {
-    const prog = document.getElementById('set-progress');
-    const wasVisible = prog && prog.classList.contains('visible');
-    if (!d.motor_busy && wasVisible) {
-      showSetProgress(false);
-      toast('Clock hands set');
-    }
   }
 
   // OTA section
@@ -1244,10 +874,6 @@ function applyData(d) {
   }
   setText('inf-uptime', fmtUptime(d.uptime_s || 0));
   setText('inf-heap', fmtHeap(d.free_heap || 0));
-  const dispPos = (d.displayed_hour >= 0 && d.displayed_min >= 0)
-    ? String(d.displayed_hour).padStart(2,'0') + ':' + String(d.displayed_min).padStart(2,'0')
-    : '—';
-  setText('inf-dmin', dispPos);
   setText('inf-ssid', d.ssid || '—');
   setText('inf-rssi', d.rssi !== undefined ? d.rssi + ' dBm' : '—');
   setText('inf-lip', d.local_ip || '—');
@@ -1269,36 +895,6 @@ function applyData(d) {
   setText('inf-s1len', d.leds && d.leds.strip1 ? d.leds.strip1.active_len + ' LEDs' : '—');
   setText('inf-s2len', d.leds && d.leds.strip2 ? d.leds.strip2.active_len + ' LEDs' : '—');
 
-  if (d.sensor_offset_steps !== undefined) {
-    const steps = d.sensor_offset_steps;
-    setText('inf-offset', steps === 0 ? 'not set' : steps + ' steps');
-    const secs = steps > 0 ? ' (≈' + (steps / 614 * 60).toFixed(1) + ' s)' : '';
-    setText('cal-saved-offset', steps === 0 ? 'not calibrated' : steps + ' steps' + secs);
-  }
-  if (d.sensor_dark_mean !== undefined && d.sensor_threshold !== undefined) {
-    setText('inf-sen-thr', d.sensor_dark_mean + ' / ' + d.sensor_threshold);
-    document.getElementById('cal-bg-result').textContent =
-      'Mean: ' + d.sensor_dark_mean + '  Threshold: ' + d.sensor_threshold;
-  }
-  setText('inf-adc', d.sensor_adc !== undefined ? d.sensor_adc : '—');
-  // Diagnostics panel
-  if (d.sensor_adc !== undefined && d.sensor_threshold !== undefined) {
-    const trig = d.sensor_adc > d.sensor_threshold;
-    setText('diag-adc', d.sensor_adc);
-    setText('diag-thr', d.sensor_threshold);
-    const trigEl = document.getElementById('diag-trig');
-    if (trigEl) {
-      trigEl.textContent = trig ? 'TRIGGERED' : 'no trigger';
-      trigEl.style.color = trig ? '#4caf50' : '';
-    }
-  }
-  if (d.cal_phase !== undefined) {
-    showCalPhase(d.cal_phase);
-    if (d.cal_phase === 'found' && d.cal_steps !== undefined) {
-      setText('cal-steps-val', d.cal_steps);
-    }
-  }
-  setText('inf-mdir', d.motor_reverse ? 'Reverse' : 'Normal');
   setText('inf-tz-iana', d.iana_tz || '—');
   setText('inf-tz-posix', d.posix_tz || '—');
 
@@ -1309,43 +905,16 @@ function applyData(d) {
 
   if (!cfgInitialized) {
     // First data received — populate all config inputs
-    if (d.step_delay_us) {
-      const slEl = document.getElementById('cfg-step-delay');
-      if (document.activeElement !== slEl) {
-        slEl.value = d.step_delay_us;
-        updateSpeedLabel(d.step_delay_us);
-      }
-    }
-
     if (s1len !== undefined) document.getElementById('cfg-s1len').value = s1len;
     if (s2len !== undefined) document.getElementById('cfg-s2len').value = s2len;
-    document.getElementById('dir-norm').classList.toggle('active', !d.motor_reverse);
-    document.getElementById('dir-rev').classList.toggle('active', !!d.motor_reverse);
 
     // Snapshot initial server state
-    serverCfg = {
-      step_delay_us: d.step_delay_us,
-      motor_reverse: d.motor_reverse,
-      s1len, s2len
-    };
+    serverCfg = { s1len, s2len };
     cfgInitialized = true;
 
   } else {
     // Subsequent pushes — only update a config input if the server value
     // actually changed (catches external changes via UART/console).
-    if (d.step_delay_us && d.step_delay_us !== serverCfg.step_delay_us) {
-      const slEl = document.getElementById('cfg-step-delay');
-      if (document.activeElement !== slEl) {
-        slEl.value = d.step_delay_us;
-        updateSpeedLabel(d.step_delay_us);
-      }
-      serverCfg.step_delay_us = d.step_delay_us; // always track, even if not applied
-    }
-    if (d.motor_reverse !== undefined && d.motor_reverse !== serverCfg.motor_reverse) {
-      document.getElementById('dir-norm').classList.toggle('active', !d.motor_reverse);
-      document.getElementById('dir-rev').classList.toggle('active', !!d.motor_reverse);
-      serverCfg.motor_reverse = d.motor_reverse;
-    }
     if (s1len !== undefined && s1len !== serverCfg.s1len) {
       document.getElementById('cfg-s1len').value = s1len;
       serverCfg.s1len = s1len;
@@ -1370,7 +939,6 @@ function connectWS() {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 buildColorGrid(1);
-buildColorGrid(2);
 
 // Initial fetch
 fetch('/api/status').then(r => r.json()).then(applyData).catch(() => {});

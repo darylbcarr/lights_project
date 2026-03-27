@@ -83,7 +83,7 @@ static constexpr gpio_num_t  BUTTON_B            = GPIO_NUM_11;  // menu next
 static Networking    s_net;
 static Display       s_display;
 static Menu          s_menu(s_display);
-static LedManager    s_leds(GPIO_NUM_1, GPIO_NUM_2, 30);
+static LedManager    s_leds(GPIO_NUM_1, GPIO_NUM_2, 350);
 static MatterBridge  s_matter(s_leds);
 static WebServer     s_webserver(s_net, s_leds);
 static OtaManager    s_ota;
@@ -416,8 +416,8 @@ extern "C" void app_main()
     ConfigStore::load(netCfg);
 
     // Per-strip hardware defaults for new installations (len==0 means never saved).
-    if (ledCfg.strip[0].len == 0) ledCfg.strip[0].len = 24;  // Ring
-    if (ledCfg.strip[1].len == 0) ledCfg.strip[1].len = 6;   // Base
+    if (ledCfg.strip[0].len == 0) ledCfg.strip[0].len = 30;  // Left
+    if (ledCfg.strip[1].len == 0) ledCfg.strip[1].len = 30;  // Right
 
     // Resolve WiFi credentials (NVS → fallback to compile-time defaults)
     const char* wifi_ssid = (netCfg.ssid[0] != '\0') ? netCfg.ssid : WIFI_SSID_DEFAULT;

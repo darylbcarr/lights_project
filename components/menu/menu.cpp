@@ -189,13 +189,21 @@ void Menu::render()
         return;
 
     const auto &children = current_menu_->getChildren();
+
+    // Root menu gets a blank separator between the title and the first item.
+    const int item_offset = (current_menu_->getParent() == nullptr) ? 2 : 1;
+
     std::vector<std::string> lines;
-    lines.reserve(1 + MAX_VISIBLE_ITEMS);
+    lines.reserve(item_offset + MAX_VISIBLE_ITEMS);
 
     // Line 0: centred title
     lines.push_back(center_str(current_menu_->getName()));
 
-    // Lines 1..MAX_VISIBLE_ITEMS: items (with h-scroll on selected item)
+    // Line 1 (root only): blank separator
+    if (item_offset == 2)
+        lines.emplace_back("");
+
+    // Lines item_offset...: items (with h-scroll on selected item)
     size_t end = std::min(display_start_ + MAX_VISIBLE_ITEMS, children.size());
     for (size_t i = display_start_; i < end; i++)
     {
@@ -211,12 +219,12 @@ void Menu::render()
             lines.push_back(name);
         }
     }
-    while ((int)lines.size() < 1 + (int)MAX_VISIBLE_ITEMS)
+    while ((int)lines.size() < item_offset + (int)MAX_VISIBLE_ITEMS)
         lines.emplace_back("");
 
-    // highlight_line is +1 to account for the title row
+    // highlight_line accounts for title row (+ optional blank on root)
     int highlight_line = (current_selection_ >= display_start_)
-                             ? (int)(current_selection_ - display_start_) + 1
+                             ? (int)(current_selection_ - display_start_) + item_offset
                              : -1;
 
     display_.writeLines(lines, highlight_line);

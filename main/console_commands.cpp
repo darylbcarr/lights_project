@@ -55,7 +55,7 @@ static void uart_printf(const char* fmt, ...)
 
 static void prompt()
 {
-    uart_puts("\r\nclock> ");
+    uart_puts("\r\nlights> ");
 }
 
 static int read_line(char* buf, int len)

@@ -1,31 +1,18 @@
-# Analog Clock Driver — ESP32-S3 (ESP-IDF v5.4.1)
+# WS2812 LED Strip Driver — ESP32-S3 (ESP-IDF v5.4.1)
 
-A stepper-motor-driven analog clock with SNTP time sync, optical position sensing, automatic drift correction, WS2812B LED strips, a rotary-encoder menu, SSD1306 OLED display, OTA firmware updates, and optional Matter (Thread/BLE) smart-home integration.
+WS2812B LED strips, SSD1306 OLED display, OTA firmware updates, and optional Matter (Thread/BLE) smart-home integration.
 
 ---
 
 ## Hardware
 
-| Signal           | ESP32-S3 GPIO | Notes                                    |
-|------------------|---------------|------------------------------------------|
-| Stepper IN1      | GPIO 16       | ULN2003 → 28BYJ-48                       |
-| Stepper IN2      | GPIO 15       |                                          |
-| Stepper IN3      | GPIO 7        |                                          |
-| Stepper IN4      | GPIO 6        |                                          |
-| LED (sensor)     | GPIO 13       | 330 Ω series resistor                    |
-| LDR (ADC in)     | GPIO 14       | 10 kΩ pull-down; ADC2_CH3 (WiFi-safe)   |
-| I²C SDA          | GPIO 8        | Shared: SSD1306 display + Seesaw encoder |
-| I²C SCL          | GPIO 9        |                                          |
-| SSD1306 OLED     | I²C 0x3C      | 128×64, 8×8 font                         |
-| Seesaw encoder   | I²C 0x36      | Adafruit Seesaw SAMD09                   |
-| LED Strip Ring   | GPIO (RMT)    | WS2812B — default 24 LEDs                |
-| LED Strip Base   | GPIO (RMT)    | WS2812B — default 6 LEDs                 |
-
-### Motor notes
-- **28BYJ-48** (5 V) driven through **ULN2003** at 3.3 V logic.
-- **Half-step mode** (8 phases): 4096 half-steps/revolution.
-- Coils **de-energised** after every move — no holding hum or excess heat.
-- Default step delay: **2000 µs/step** (~8 s/rev). Adjustable via web UI or UART.
+| Signal           | ESP32-S3 GPIO | Notes                       |
+|------------------|---------------|-----------------------------|
+| I²C SDA          | GPIO 8        | Shared: SSD1306 display     |
+| I²C SCL          | GPIO 9        |                             |
+| SSD1306 OLED     | I²C 0x3C      | 128×64, 8×8 font            |
+| LED Strip Left   | GPIO (RMT)    | WS2812B — default 30 LEDs   |
+| LED Strip Right  | GPIO (RMT)    | WS2812B — default 30 LEDs   |
 
 ---
 
@@ -76,7 +63,6 @@ Sections:
 
 | Tab | Contents |
 |-----|----------|
-| **Clock** | Live time display, SNTP status, timezone |
 | **Lights** | Per-strip colour swatches, brightness, effects |
 | **Config** | Motor speed, motor direction, LED strip lengths, mDNS hostname, timezone override |
 | **Info** | Network status, firmware version, sensor readings, uptime, heap |
