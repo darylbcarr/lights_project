@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hollow Clock — Matter Pairing</title>
+  <script src="qrcode.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.02em;
+    }
+    header p {
+      margin-top: 0.4rem;
+      font-size: 0.9rem;
+      color: #94a3b8;
+    }
+
+    .card {
+      background: #1e2330;
+      border: 1px solid #2d3748;
+      border-radius: 16px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 480px;
+      margin-bottom: 1.5rem;
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 1.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 0.75rem;
+    }
+
+    .field { margin-bottom: 1rem; }
+    .field label {
+      display: block;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-bottom: 0.4rem;
+    }
+    .field input {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 0.6rem 0.8rem;
+      font-size: 1rem;
+      color: #f1f5f9;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus { border-color: #6366f1; }
+
+    .btn {
+      width: 100%;
+      padding: 0.75rem;
+      background: #6366f1;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 0.5rem;
+    }
+    .btn:hover { background: #4f46e5; }
+
+    /* QR code output card */
+    #output { display: none; }
+
+    .qr-wrap {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    #qrcode {
+      background: #fff;
+      padding: 24px;
+      border-radius: 12px;
+      display: inline-block;
+    }
+    #qrcode canvas, #qrcode img { display: block; }
+
+    .btn-secondary {
+      width: 100%;
+      padding: 0.6rem;
+      background: transparent;
+      color: #6366f1;
+      font-size: 0.875rem;
+      font-weight: 600;
+      border: 1px solid #6366f1;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      margin-top: 0.75rem;
+    }
+    .btn-secondary:hover { background: #6366f1; color: #fff; }
+
+    .mt-string {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-top: 0.75rem;
+      word-break: break-all;
+    }
+    .mt-string .lbl {
+      font-size: 0.7rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.3rem;
+    }
+    .mt-string code {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.85rem;
+      color: #a5b4fc;
+    }
+
+    .manual-code {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 10px;
+      padding: 1rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .manual-code .label {
+      font-size: 0.75rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+    .manual-code .code {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: #a5b4fc;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-bottom: 0;
+    }
+    .info-item {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 0.75rem;
+    }
+    .info-item .lbl {
+      font-size: 0.7rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .info-item .val {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #e2e8f0;
+      margin-top: 0.2rem;
+    }
+
+    .steps ol { padding-left: 1.25rem; }
+    .steps li {
+      font-size: 0.875rem;
+      color: #94a3b8;
+      line-height: 1.6;
+      margin-bottom: 0.4rem;
+    }
+    .steps li strong { color: #e2e8f0; }
+
+    .error {
+      color: #f87171;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+
+    footer {
+      margin-top: 1rem;
+      font-size: 0.75rem;
+      color: #374151;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Hollow Clock</h1>
+  <p>Matter commissioning — generate a pairing QR code from your device's discriminator</p>
+</header>
+
+<!-- Input card -->
+<div class="card">
+  <h2>Device Info</h2>
+
+  <div class="field">
+    <label for="inp-disc">Discriminator <span style="color:#4b5563">(printed at boot: "discriminator=XXXX")</span></label>
+    <input type="number" id="inp-disc" min="0" max="4094" placeholder="e.g. 508" />
+  </div>
+
+  <div class="field">
+    <label for="inp-pin">Setup PIN</label>
+    <input type="number" id="inp-pin" value="20202021" min="1" max="99999998" />
+  </div>
+
+  <div class="field">
+    <label for="inp-name">Device label <span style="color:#4b5563">(optional, for your reference)</span></label>
+    <input type="text" id="inp-name" placeholder="e.g. Living Room Clock" maxlength="40" />
+  </div>
+
+  <p id="error-msg" class="error"></p>
+  <button class="btn" onclick="generate()">Generate Pairing Code</button>
+</div>
+
+<!-- Output card -->
+<div class="card" id="output">
+  <h2 id="out-device-label">Pairing QR Code</h2>
+
+  <div class="manual-code" style="margin-bottom:1rem">
+    <div class="label">Manual pairing code — use this with Alexa</div>
+    <div class="code" id="out-manual">—</div>
+  </div>
+
+  <details style="margin-bottom:0.75rem">
+    <summary style="font-size:0.8rem;color:#64748b;cursor:pointer;user-select:none">
+      QR code (HomeKit / Google Home — not supported by Alexa for dev devices)
+    </summary>
+    <div style="margin-top:0.75rem">
+      <div class="qr-wrap"><div id="qrcode"></div></div>
+      <button class="btn-secondary" onclick="downloadQR()">Download QR as PNG</button>
+      <div class="mt-string" style="margin-top:0.75rem">
+        <div class="lbl">Raw QR string</div>
+        <code id="out-qr-str">—</code>
+      </div>
+    </div>
+  </details>
+
+  <div class="info-grid">
+    <div class="info-item">
+      <div class="lbl">Discriminator</div>
+      <div class="val" id="out-disc">—</div>
+    </div>
+    <div class="info-item">
+      <div class="lbl">Setup PIN</div>
+      <div class="val" id="out-pin">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Instructions card -->
+<div class="card steps">
+  <h2>Pairing Steps</h2>
+  <ol>
+    <li>Find the discriminator in the display output:<br>
+        <strong><code>Disc: XXXX</code></strong></li>
+    <li>Enter the discriminator above and click <strong>Generate</strong>.</li>
+    <li>If BLE fast advertising has timed out (&gt;30 s since boot), type
+        <strong><code>matter-pair</code></strong> at the <code>clock&gt;</code> UART prompt
+        <em>before</em> opening Alexa — the console is unresponsive once Alexa's
+        PASE handshake begins.</li>
+    <li>In Alexa → <strong>Add Device → Matter → Setup without QR code</strong>
+        and enter the 11-digit manual code.
+        <br><em style="font-size:0.8rem;color:#64748b">Alexa validates QR codes
+        against the Matter DCL; unregistered dev devices (VID=0) are silently
+        rejected. The manual code bypasses this check.</em>
+    </li>
+    <li>If re-pairing after a firmware update, erase the device NVS first:<br>
+        <code>python -m parttool -p /dev/ttyUSB0 erase_partition --partition-name nvs</code></li>
+  </ol>
+</div>
+
+<footer>Clock Project firmware &mdash; ESP32-S3 / ESP-IDF v5.4.1</footer>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Matter QR code payload generator
+// Spec: Matter 1.x section 5.1.3 (QR code) and 5.1.4 (manual code)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BASE38_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-.';
+
+/**
+ * Pack the 88-bit Matter setup payload and return as an 11-byte Uint8Array.
+ * Bit layout (LSB-first within each byte):
+ *   [  2: 0] version         (3 bits)  = 0
+ *   [ 18: 3] vendorId        (16 bits) = 0 (test)
+ *   [ 34:19] productId       (16 bits) = 0 (test)
+ *   [ 36:35] commissionFlow  (2 bits)  = 0 (standard)
+ *   [ 44:37] rendezvous      (8 bits)  = 6 (BLE | OnNetwork)
+ *   [ 56:45] discriminator   (12 bits)
+ *   [ 83:57] setupPIN        (27 bits)
+ *   [ 87:84] padding         (4 bits)  = 0
+ */
+function buildMatterPayload(discriminator, pin) {
+  const fields = [
+    { val: 0n,                    bits: 3  },  // version
+    { val: 0n,                    bits: 16 },  // vendorId
+    { val: 0n,                    bits: 16 },  // productId
+    { val: 0n,                    bits: 2  },  // commissionFlow
+    { val: 2n,                    bits: 8  },  // rendezvous: kBLE (0x02) — initial commissioning
+    { val: BigInt(discriminator), bits: 12 },
+    { val: BigInt(pin),           bits: 27 },
+    { val: 0n,                    bits: 4  },  // padding
+  ];
+
+  let packed = 0n;
+  let offset = 0n;
+  for (const f of fields) {
+    const mask = (1n << BigInt(f.bits)) - 1n;
+    packed |= (f.val & mask) << offset;
+    offset += BigInt(f.bits);
+  }
+
+  // Extract 11 bytes, little-endian
+  const bytes = new Uint8Array(11);
+  for (let i = 0; i < 11; i++) {
+    bytes[i] = Number(packed & 0xFFn);
+    packed >>= 8n;
+  }
+  return bytes;
+}
+
+/**
+ * Encode a byte array using Matter's base-38 alphabet.
+ * Groups of 3 bytes → 5 chars, 2 bytes → 4 chars, 1 byte → 2 chars.
+ */
+function base38Encode(bytes) {
+  let result = '';
+  let i = 0;
+  while (i < bytes.length) {
+    const rem = bytes.length - i;
+    let val, numChars;
+    if (rem >= 3) {
+      val = bytes[i] | (bytes[i+1] << 8) | (bytes[i+2] << 16);
+      numChars = 5; i += 3;
+    } else if (rem === 2) {
+      val = bytes[i] | (bytes[i+1] << 8);
+      numChars = 4; i += 2;
+    } else {
+      val = bytes[i];
+      numChars = 2; i += 1;
+    }
+    for (let j = 0; j < numChars; j++) {
+      result += BASE38_ALPHABET[val % 38];
+      val = Math.floor(val / 38);
+    }
+  }
+  return result;
+}
+
+/**
+ * Generate the MT: QR string for the given discriminator and PIN.
+ */
+function matterQRString(discriminator, pin) {
+  const payload = buildMatterPayload(discriminator, pin);
+  return 'MT:' + base38Encode(payload);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Manual pairing code (Matter spec 5.1.4.1, standard commissioning flow)
+// Format: "0" + chunk1(5 digits) + chunk2(4 digits) + verhoeff(1 digit) = 11
+//   short_disc = discriminator >> 8          (top 4 bits of 12-bit disc)
+//   chunk1     = (short_disc << 14) | (pin & 0x3FFF)
+//   chunk2     = pin >> 14
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Verhoeff algorithm tables
+const V_MULT = [
+  [0,1,2,3,4,5,6,7,8,9],
+  [1,2,3,4,0,6,7,8,9,5],
+  [2,3,4,0,1,7,8,9,5,6],
+  [3,4,0,1,2,8,9,5,6,7],
+  [4,0,1,2,3,9,5,6,7,8],
+  [5,9,8,7,6,0,4,3,2,1],
+  [6,5,9,8,7,1,0,4,3,2],
+  [7,6,5,9,8,2,1,0,4,3],
+  [8,7,6,5,9,3,2,1,0,4],
+  [9,8,7,6,5,4,3,2,1,0],
+];
+const V_PERM = [
+  [0,1,2,3,4,5,6,7,8,9],
+  [1,5,7,6,2,8,3,0,9,4],
+  [5,8,0,3,7,9,6,1,4,2],
+  [8,9,1,6,0,4,3,5,2,7],
+  [9,4,5,3,1,2,6,8,7,0],
+  [4,2,8,6,5,7,3,9,0,1],
+  [2,7,9,3,8,0,6,4,1,5],
+  [7,0,4,6,9,1,3,2,5,8],
+];
+const V_INV = [0,4,3,2,1,9,8,7,6,5];
+
+function verhoeffCheckDigit(str) {
+  let c = 0;
+  const digits = str.split('').reverse().map(Number);
+  for (let i = 0; i < digits.length; i++) {
+    c = V_MULT[c][V_PERM[(i + 1) % 8][digits[i]]];
+  }
+  return V_INV[c];
+}
+
+function matterManualCode(discriminator, pin) {
+  const shortDisc = (discriminator >> 8) & 0xF;      // top 4 bits
+  const chunk1 = (shortDisc << 14) | (pin & 0x3FFF); // 18 bits → ≤5 decimal digits
+  const chunk2 = (pin >> 14) & 0x1FFF;               // 13 bits → ≤4 decimal digits
+  const body = '0'
+    + String(chunk1).padStart(5, '0')
+    + String(chunk2).padStart(4, '0');
+  return body + verhoeffCheckDigit(body);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UI
+// ─────────────────────────────────────────────────────────────────────────────
+
+let qrInstance = null;
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function generate() {
+  const discRaw = document.getElementById('inp-disc').value.trim();
+  const pinRaw  = document.getElementById('inp-pin').value.trim();
+  const name    = document.getElementById('inp-name').value.trim();
+
+  showError('');
+
+  const disc = parseInt(discRaw, 10);
+  const pin  = parseInt(pinRaw, 10);
+
+  if (!discRaw || isNaN(disc) || disc < 0 || disc > 4094) {
+    showError('Discriminator must be a number between 0 and 4094.'); return;
+  }
+  if (!pinRaw || isNaN(pin) || pin < 1 || pin > 99999998) {
+    showError('PIN must be between 1 and 99999998.'); return;
+  }
+  // Matter spec forbids PINs with all repeated digits (00000000, 11111111, …)
+  if (/^(\d)\1+$/.test(String(pin).padStart(8,'0'))) {
+    showError('Invalid PIN (all digits identical).'); return;
+  }
+
+  const qrStr     = matterQRString(disc, pin);
+  const manualStr = matterManualCode(disc, pin);
+
+  // Render QR code — 300 px with high error correction for reliable scanning
+  const container = document.getElementById('qrcode');
+  container.innerHTML = '';
+  qrInstance = new QRCode(container, {
+    text: qrStr,
+    width: 300, height: 300,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.Q,
+  });
+
+  // Fill info
+  document.getElementById('out-qr-str').textContent = qrStr;
+  document.getElementById('out-manual').textContent  = manualStr;
+  document.getElementById('out-disc').textContent    = disc;
+  document.getElementById('out-pin').textContent     = pin;
+  document.getElementById('out-device-label').textContent =
+    name ? `Pairing QR Code — ${name}` : 'Pairing QR Code';
+
+  document.getElementById('output').style.display = 'block';
+  document.getElementById('output').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function downloadQR() {
+  const canvas = document.querySelector('#qrcode canvas');
+  if (!canvas) return;
+  // Add white margin around the canvas before downloading
+  const margin = 24;
+  const out = document.createElement('canvas');
+  out.width  = canvas.width  + margin * 2;
+  out.height = canvas.height + margin * 2;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(canvas, margin, margin);
+  const a = document.createElement('a');
+  a.download = 'matter-pairing-qr.png';
+  a.href = out.toDataURL('image/png');
+  a.click();
+}
+
+// Pre-fill from URL params: ?disc=508&pin=20202021&name=Living+Room
+(function () {
+  const p = new URLSearchParams(window.location.search);
+  if (p.has('disc')) document.getElementById('inp-disc').value = p.get('disc');
+  if (p.has('pin'))  document.getElementById('inp-pin').value  = p.get('pin');
+  if (p.has('name')) document.getElementById('inp-name').value = p.get('name');
+  if (p.has('disc')) generate();
+})();
+</script>
+
+</body>
+</html>

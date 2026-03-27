@@ -1,0 +1,18 @@
+idf_component_register(
+    SRCS
+        "networking.cpp"
+        "tz_lookup.cpp"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        esp_wifi
+        esp_coex
+        esp_event
+        esp_netif
+        esp_http_client
+        nvs_flash
+        lwip
+        log
+        json
+        mdns
+)

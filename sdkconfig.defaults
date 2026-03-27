@@ -1,0 +1,125 @@
+# Clock Project SDK Configuration Defaults
+
+# Enable C++ exceptions (needed for std::string formatting etc.)
+CONFIG_COMPILER_CXX_EXCEPTIONS=y
+
+# FreeRTOS tick rate
+CONFIG_FREERTOS_HZ=1000
+
+# Enable SNTP
+CONFIG_LWIP_DHCP_GET_NTP_SRV=y
+
+# ADC / GPIO
+CONFIG_ADC_SUPPRESS_DEPRECATE_WARN=y
+
+# Allow new and legacy I2C drivers to coexist (Display uses new driver,
+# Encoder seesaw shares the same bus via new driver's bus handle)
+CONFIG_I2C_SKIP_LEGACY_CONFLICT_CHECK=y
+
+# Logging
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# ── Partition table ───────────────────────────────────────────────────────────
+# Custom partition table with OTA (ota_0 / ota_1) and FAT storage.
+# Two layouts are defined in partitions.csv — comment/uncomment as needed:
+#   Production (16 MB flash):  active by default
+#   Development (32 MB flash): swap the commented blocks in partitions.csv
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# Flash size — must match the active layout in partitions.csv.
+# Production device: 16 MB   → CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+# Development device: 32 MB  → change to CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+
+# OTA support — required for ota_0/ota_1 partition scheme
+# Rollback: if the new firmware doesn't call esp_ota_mark_app_valid_cancel_rollback()
+# before rebooting, the bootloader reverts to the previous slot automatically.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# CA certificate bundle — required for HTTPS to GitHub (TLS cert verification)
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
+
+# WebSocket support for the HTTP server
+CONFIG_HTTPD_WS_SUPPORT=y
+
+# mDNS: use ESP-IDF mDNS (not Matter's minimal-mDNS stack).
+# Both stacks compete for the 224.0.0.251:5353 multicast socket.
+# With =n, Matter uses ESP32DnssdImpl (ESP-IDF mDNS) and our start_mdns()
+# coexists: on the Matter path we register a delegated hostname instead of
+# calling mdns_hostname_set, so Matter's operational-node ad is unaffected.
+CONFIG_USE_MINIMAL_MDNS=n
+
+# ── Heap conservation during BLE commissioning ───────────────────────────────
+# BLE commissioning consumes ~70 KB of heap.  Reducing WiFi static RX buffers
+# and NimBLE MSYS pool sizes recovers ~12 KB for Matter packet buffer allocation.
+#
+# WiFi static RX buffers: each is 1600 B.  6 is sufficient for normal STA use.
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=6
+#
+# NimBLE MSYS pools: reduced conservatively to recover heap without impacting
+# BLE commissioning throughput.
+# MSYS1 (small pkts): 12→8 blocks × 256 B = saves 1024 B
+# MSYS2 (large pkts): 24→16 blocks × 320 B = saves 2560 B
+CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT=8
+CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT=16
+
+# ── IRAM reduction ───────────────────────────────────────────────────────────
+# WiFi ISR MUST stay in IRAM (default=y) for reliable BLE+WiFi coexistence.
+# When WiFi ISR runs from flash (=n), latency during BLE radio activity is
+# high enough to lose association timings, causing every connection attempt to
+# fail with "Coexist: Wi-Fi connect fail" while BLE is advertising/connected.
+# Heap functions moved to flash instead — recovers ~10 KB with no coex impact.
+CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH=y
+
+# ── mbedTLS extras required by Matter ────────────────────────────────────────
+# HKDF is used by CHIP crypto (CHIPCryptoPALmbedTLS) but disabled by default.
+CONFIG_MBEDTLS_HKDF_C=y
+
+# ── Main task stack ───────────────────────────────────────────────────────────
+# Default (3584) is too small once Matter's WiFi+BLE init runs on app_main's
+# stack during first-time setup.  8 KB gives comfortable headroom.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# ── Matter / CHIP ─────────────────────────────────────────────────────────────
+# Increase from the default 100 ms so CHIP's reconnect timer doesn't fire
+# while the WiFi coexistence module is still running its own reconnect policy
+# (which takes >100 ms to resolve BLE+WiFi radio contention on first-connect
+# during BLE commissioning).  1000 ms gives the coex layer enough headroom.
+CONFIG_WIFI_STATION_RECONNECT_INTERVAL=1000
+
+# Bluetooth for BLE commissioning (first-time pairing via Home app)
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+
+# Matter data model
+CONFIG_ESP_MATTER_ENABLE_DATA_MODEL=y
+
+# Allow Matter's NetworkCommissioning cluster to manage WiFi during BLE
+# commissioning.  When Alexa/Google Home sends WiFi credentials via BLE,
+# the CHIP WiFi station driver applies them and calls esp_wifi_connect().
+# Networking::begin() with an empty SSID just watches for the resulting
+# IP event and starts SNTP — it does not conflict with Matter's WiFi driver.
+# For manually-entered WiFi credentials (non-Matter path), Networking::begin()
+# is called with the SSID and handles WiFi directly; Matter has no stored
+# credentials in that case and does not interfere.
+CONFIG_CHIP_ENABLE_WIFI_STATION=y
+
+# Read PIN and discriminator from NVS ("fctry" partition, "chip-factory" namespace)
+# instead of using the compile-time test constants (20202021 / 3840).
+# This allows each device to advertise a unique discriminator derived from its
+# MAC address, so multiple devices in the same home get distinct pairing codes.
+# Requires that ensure_unique_discriminator() writes the keys before matter::start().
+CONFIG_ENABLE_TEST_SETUP_PARAMS=y
+# Point CHIP's factory namespace at the dedicated "fctry" NVS partition (not "nvs").
+# ensure_unique_discriminator() writes chip-factory/discriminator there on first boot.
+CONFIG_CHIP_FACTORY_NAMESPACE_PARTITION_LABEL="fctry"
+
+# Disable Matter shell (saves flash; use UART console instead)
+CONFIG_ENABLE_CHIP_SHELL=n
+
+# Use test/development attestation credentials (no factory data flashing needed
+# for development). Set to y and flash factory data for production devices.
+CONFIG_CHIP_FACTORY_DATA=n

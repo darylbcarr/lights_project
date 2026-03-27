@@ -1,0 +1,28 @@
+
+# Production partition_table_16MB.csv
+# NOTE: fctry added for Matter device attestation (factory data).
+# Requires full reflash: idf.py -p /dev/ttyUSB0 erase-flash flash
+nvs,        data, nvs,     ,        0xC000
+otadata,    data, ota,     ,        0x2000
+phy_init,   data, phy,     ,        0x1000
+fctry,      data, nvs,     ,        0x10000
+ota_0,      app,  ota_0,   ,        0x300000
+ota_1,      app,  ota_1,   ,        0x300000
+storage,    data, fat,     ,        0x5E4000
+
+
+# Development partition_table_32MB.csv
+#nvs,        data, nvs,     ,        0x10000
+#otadata,    data, ota,     ,        0x2000
+#phy_init,   data, phy,     ,        0x1000
+#ota_0,      app,  ota_0,   ,        0x400000
+#ota_1,      app,  ota_1,   ,        0x400000
+#storage,    data, fat,     ,        0x1400000
+
+# ESP-IDF Partition Table (ESP32-S3, 8MB flash, 2MB factory app)
+# Name,    Type, SubType, Offset,  Size,     Flags
+#nvs,       data, nvs,     ,        0x6000,
+#otadata,   data, ota,     ,        0x2000,
+#phy_init,  data, phy,     ,        0x1000,
+#factory,   app,  factory, ,        0x200000,
+#storage,   data, fat,     ,        0x100000
