@@ -6,7 +6,7 @@
  *
  * version.json format (hosted on GitHub, updated by CI on each release):
  *   { "version": "1.2.0",
- *     "url": "https://github.com/OWNER/REPO/releases/download/v1.2.0/clock_project.bin" }
+ *     "url": "https://github.com/darylbcarr/lights_project/releases/download/v1.0.0/lights_project.bin" }
  */
 
 #include <functional>
@@ -20,7 +20,7 @@ class OtaManager {
 public:
     // ── Update this to your repo ──────────────────────────────────────────────
     static constexpr const char* VERSION_CHECK_URL =
-        "https://raw.githubusercontent.com/darylbcarr/clock_project/main/version.json";
+        "https://raw.githubusercontent.com/darylbcarr/lights_project/main/version.json";
 
     /**
      * @brief Launch the background OTA check task.
