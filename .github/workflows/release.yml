@@ -20,14 +20,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      # ── 2. Docker Hub login — prevents rate-limit blocks on shared runners ────
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # # ── 2. Docker Hub login — prevents rate-limit blocks on shared runners ────
+      # - name: Log in to Docker Hub
+      #   uses: docker/login-action@v3
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # ── 3. Build with ESP-IDF ─────────────────────────────────────────────────
+      # ── 2. Build with ESP-IDF ─────────────────────────────────────────────────
+      # Uses the official Espressif CI Docker action.
+      # ci_build.sh: removes lock, reconfigures (downloads components), patches
+      # Nullable.h (same fix as local), then builds.
       - name: Build firmware
         uses: espressif/esp-idf-ci-action@v1
         with:
@@ -51,6 +54,8 @@ jobs:
 
       # ── 5. Update version.json and push to main ───────────────────────────────
       # Devices poll this file to discover new releases.
+      # We check out the tip of origin/main first so this commit always fast-forwards,
+      # even when origin/main has moved ahead of the tagged commit (e.g. after a rebase).
       - name: Update version.json
         run: |
           REPO="${{ github.repository }}"

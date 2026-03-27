@@ -67,7 +67,6 @@ Sections:
 | **Config** | Motor speed, motor direction, LED strip lengths, mDNS hostname, timezone override |
 | **Info** | Network status, firmware version, sensor readings, uptime, heap |
 | **OTA** | Firmware version check, one-click update, auto-update toggle |
-| **Sensor** | Live ADC reading, calibration workflow, diagnostics |
 
 The web UI uses a persistent WebSocket (1-second push) for live updates. Config inputs are only pre-populated on first connect; subsequent pushes only update them if the server value changed externally (e.g. via UART console).
 
@@ -75,14 +74,9 @@ The web UI uses a persistent WebSocket (1-second push) for live updates. Config 
 
 ## Matter / Smart Home
 
-Exposes **two Extended Color Light endpoints** over Matter:
+Exposes **one Extended Color Light endpoint** over Matter:
 
-| Endpoint | Strip |
-|----------|-------|
-| 1        | Ring  |
-| 2        | Base  |
-
-Each endpoint supports On/Off, Level Control (brightness), and Color Control (HS, XY, and color temperature modes). Compatible with Alexa, Apple Home, and Google Home.
+The endpoint supports On/Off, Level Control (brightness), and Color Control (HS, XY, and color temperature modes). Compatible with Alexa, Apple Home, and Google Home.
 
 **Re-opening the commissioning window** (e.g. to add a second controller):
 `clock> matter-open-window`
@@ -104,24 +98,6 @@ A 60 KB free-heap guard prevents OTA from running when memory is low (e.g. durin
 ## UART Console
 
 Connect at **115200 baud**. Prompt: `clock> `
-
-### Clock & motor
-| Command | Description |
-|---------|-------------|
-| `status` | Full system state dump |
-| `set-time [min]` | Move hand to current SNTP minute (or specified minute 0–59) |
-| `advance` | Force one test-minute advance |
-| `microstep <n> [fwd\|bwd]` | Fine-adjust hand position |
-| `set-offset <steps>` | Save sensor-to-12:00 offset (from calibration) |
-| `set-step-delay <us>` | Change motor speed (µs/half-step) |
-| `motor-reverse [0\|1]` | Flip motor direction |
-
-### Sensor calibration
-| Command | Description |
-|---------|-------------|
-| `calibrate` | Measure dark baseline, set threshold |
-| `measure` | Print average ADC reading |
-| `cal-scan` | Full auto-calibration: scan for slot, save offset |
 
 ### Network & time
 | Command | Description |
@@ -145,22 +121,10 @@ Connect at **115200 baud**. Prompt: `clock> `
 
 ---
 
-## Sensor Calibration Workflow
-
-1. Ensure the minute hand is **not** over the sensor.
-2. `clock> calibrate` — sets threshold from dark baseline.
-3. `clock> cal-scan` — motor sweeps through one revolution, finds the optical slot, saves offset to NVS.
-4. Verify: `clock> status` — shows `sensor_offset_steps` (non-zero = calibrated).
-
----
-
 ## Component Overview
 
 | Component | Purpose |
 |-----------|---------|
-| `stepper_motor` | 28BYJ-48 half-step driver — synchronous, auto power-off |
-| `clock_manager` | Motor + sensor + FreeRTOS tick task (1/min, wall-aligned) |
-| `position_sensor` | LED/LDR ADC optical sensor |
 | `display` | SSD1306 OLED; owns I²C bus handle + mutex |
 | `encoder` | Adafruit Seesaw SAMD09 rotary encoder + buttons |
 | `menu` | Hierarchical OLED menu; 5-minute display blank timeout |
@@ -170,25 +134,3 @@ Connect at **115200 baud**. Prompt: `clock> `
 | `matter` | Matter bridge — two Extended Color Light endpoints |
 | `ota_manager` | Background OTA task; polls GitHub version.json |
 | `config_store` | NVS persistence for clock, LED, and network config |
-
----
-
-## Configuration Constants
-
-| File | Constant | Default | Purpose |
-|------|----------|---------|---------|
-| `stepper_motor.h` | `DEFAULT_STEP_DELAY_US` | 2000 | µs between half-steps |
-| `stepper_motor.h` | `MOTOR_REVS_PER_CLOCK_MINUTE` | 1.0 | Gear ratio |
-| `clock_manager.h` | `SENSOR_WINDOW_SECONDS` | 30 | ±s around hour to check sensor |
-| `clock_manager.h` | `MAX_AUTO_CORRECT_MINUTES` | 5 | Max automatic drift correction |
-| `main/main.cpp` | `WIFI_SSID_DEFAULT` / `WIFI_PASSWORD_DEFAULT` | `""` | Fallback credentials (empty = use NVS) |
-| `main/main.cpp` | `TZ_OVERRIDE` | `""` | POSIX TZ string; empty = use geolocation |
-
----
-
-## Noise Reduction Tips
-
-1. **Increase `DEFAULT_STEP_DELAY_US`** to 2500–3000 for quieter operation.
-2. **Coil power-off** is automatic after every move — no holding hum.
-3. **Mount the motor on foam** or rubber grommets to isolate vibration.
-4. **Half-step mode** (already used) is inherently quieter than full-step.
