@@ -4,6 +4,7 @@
 
 class LedManager;
 class OtaManager;
+class MatterBridge;
 #include "esp_http_server.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -23,6 +24,9 @@ public:
 
     /** @brief Wire in the OtaManager before start() to enable the /api/ota endpoint. */
     void set_ota(OtaManager* ota) { ota_ = ota; }
+
+    /** @brief Wire in the MatterBridge before start() to include Matter status in the WebSocket push. */
+    void set_matter(MatterBridge* matter) { matter_ = matter; }
 
 private:
     // HTTP handlers (static, stored as context via req->user_ctx)
@@ -49,6 +53,7 @@ private:
     Networking&    net_;
     LedManager&    leds_;
     OtaManager*    ota_            = nullptr;
+    MatterBridge*  matter_         = nullptr;
     httpd_handle_t server_          = nullptr;
     TaskHandle_t   ws_task_handle_  = nullptr;
     TaskHandle_t   cmd_task_handle_ = nullptr;

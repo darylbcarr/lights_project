@@ -277,6 +277,9 @@ bool LedManager::get_linked() const
 
 // Write a pixel to the correct physical strip by virtual index.
 // Strip 0 occupies virtual indices 0..len0-1, strip 1 the rest.
+// Strip 0 is physically reversed: virtual 0 maps to the far end (physical len0-1)
+// and virtual len0-1 maps to the center (physical 0), so effects travel from
+// the outer tip of strip 0 inward to the center, then outward along strip 1.
 // Brightness is applied here (caller passes the raw r/g/b + desired brightness).
 void LedManager::apply_virtual(int vidx, uint8_t r, uint8_t g, uint8_t b, uint8_t bri)
 {
@@ -285,7 +288,7 @@ void LedManager::apply_virtual(int vidx, uint8_t r, uint8_t g, uint8_t b, uint8_
     uint8_t bs = static_cast<uint8_t>(static_cast<uint16_t>(b) * bri / 255);
     int len0 = strips_[0].active_len;
     if (vidx < len0)
-        led_strip_set_pixel(strips_[0].handle, static_cast<uint16_t>(vidx), rs, gs, bs);
+        led_strip_set_pixel(strips_[0].handle, static_cast<uint16_t>(len0 - 1 - vidx), rs, gs, bs);
     else
         led_strip_set_pixel(strips_[1].handle, static_cast<uint16_t>(vidx - len0), rs, gs, bs);
 }
@@ -311,7 +314,7 @@ void LedManager::tick_combined()
     };
 
     auto clear_v = [&](int vidx) {
-        if (vidx < len0) led_strip_set_pixel(m.handle, static_cast<uint16_t>(vidx), 0, 0, 0);
+        if (vidx < len0) led_strip_set_pixel(m.handle, static_cast<uint16_t>(len0 - 1 - vidx), 0, 0, 0);
         else             led_strip_set_pixel(strips_[1].handle, static_cast<uint16_t>(vidx - len0), 0, 0, 0);
     };
 
@@ -350,15 +353,24 @@ void LedManager::tick_combined()
             break;
 
         case Effect::CHASE: {
-            if (m.phase % 2 == 0)
-                m.chase_pos = static_cast<uint16_t>((m.chase_pos + 1) % total);
+            if (m.phase % 2 == 0) {
+                if (m.wipe_fill) {
+                    if (m.chase_pos < static_cast<uint16_t>(total - 1)) m.chase_pos++;
+                    else                                                  m.wipe_fill = false;
+                } else {
+                    if (m.chase_pos > 0) m.chase_pos--;
+                    else                 m.wipe_fill = true;
+                }
+            }
             clear_all();
+            int dir = m.wipe_fill ? 1 : -1;
             auto set_v = [&](int offset, uint8_t scale) {
-                int pos = (static_cast<int>(m.chase_pos) - offset + total) % total;
+                int pos = static_cast<int>(m.chase_pos) - dir * offset;
+                if (pos < 0 || pos >= total) return;
                 uint8_t rs = static_cast<uint8_t>(static_cast<uint16_t>(m.r) * m.brightness / 255 * scale / 255);
                 uint8_t gs = static_cast<uint8_t>(static_cast<uint16_t>(m.g) * m.brightness / 255 * scale / 255);
                 uint8_t bs = static_cast<uint8_t>(static_cast<uint16_t>(m.b) * m.brightness / 255 * scale / 255);
-                if (pos < len0) led_strip_set_pixel(m.handle, static_cast<uint16_t>(pos), rs, gs, bs);
+                if (pos < len0) led_strip_set_pixel(m.handle, static_cast<uint16_t>(len0 - 1 - pos), rs, gs, bs);
                 else            led_strip_set_pixel(strips_[1].handle, static_cast<uint16_t>(pos - len0), rs, gs, bs);
             };
             set_v(0, 255);
@@ -395,17 +407,26 @@ void LedManager::tick_combined()
         }
 
         case Effect::COMET: {
+            // Advance head every tick, bouncing at each end
+            if (m.wipe_fill) {
+                if (m.chase_pos < static_cast<uint16_t>(total - 1)) m.chase_pos++;
+                else                                                  m.wipe_fill = false;
+            } else {
+                if (m.chase_pos > 0) m.chase_pos--;
+                else                 m.wipe_fill = true;
+            }
             clear_all();
-            int head = static_cast<int>(m.phase % total);
+            int head = static_cast<int>(m.chase_pos);
+            int dir  = m.wipe_fill ? 1 : -1;
             static constexpr int TAIL_LEN = 8;
             for (int tail = 0; tail < TAIL_LEN; tail++) {
-                int pos = head - tail;
-                if (pos < 0) pos += total;
+                int pos = head - dir * tail;
+                if (pos < 0 || pos >= total) break;
                 float fade = 1.0f - static_cast<float>(tail) / TAIL_LEN;
                 uint8_t rs = static_cast<uint8_t>(m.r * fade * m.brightness / 255.0f);
                 uint8_t gs = static_cast<uint8_t>(m.g * fade * m.brightness / 255.0f);
                 uint8_t bs = static_cast<uint8_t>(m.b * fade * m.brightness / 255.0f);
-                if (pos < len0) led_strip_set_pixel(m.handle, static_cast<uint16_t>(pos), rs, gs, bs);
+                if (pos < len0) led_strip_set_pixel(m.handle, static_cast<uint16_t>(len0 - 1 - pos), rs, gs, bs);
                 else            led_strip_set_pixel(strips_[1].handle, static_cast<uint16_t>(pos - len0), rs, gs, bs);
             }
             break;
@@ -489,16 +510,25 @@ void LedManager::fx_chase(StripState& s)
 {
     if (s.active_len == 0) return;
 
-    // Advance every 2 ticks
-    if (s.phase % 2 == 0)
-        s.chase_pos = static_cast<uint16_t>((s.chase_pos + 1) % s.active_len);
+    // Advance every 2 ticks, bouncing at each end
+    if (s.phase % 2 == 0) {
+        if (s.wipe_fill) {
+            if (s.chase_pos < s.active_len - 1) s.chase_pos++;
+            else                                 s.wipe_fill = false;
+        } else {
+            if (s.chase_pos > 0) s.chase_pos--;
+            else                 s.wipe_fill = true;
+        }
+    }
 
     for (uint16_t i = 0; i < s.active_len; i++)
         led_strip_set_pixel(s.handle, i, 0, 0, 0);
 
-    // Head (full), +1 back (50%), +2 back (25%)
+    // Tail trails behind the direction of travel; skip pixels outside the strip
+    int dir = s.wipe_fill ? 1 : -1;
     auto set_chase = [&](int offset, uint8_t scale) {
-        int pos = (static_cast<int>(s.chase_pos) - offset + s.active_len) % s.active_len;
+        int pos = static_cast<int>(s.chase_pos) - dir * offset;
+        if (pos < 0 || pos >= static_cast<int>(s.active_len)) return;
         uint8_t rs = static_cast<uint8_t>(static_cast<uint16_t>(s.r) * s.brightness / 255 * scale / 255);
         uint8_t gs = static_cast<uint8_t>(static_cast<uint16_t>(s.g) * s.brightness / 255 * scale / 255);
         uint8_t bs = static_cast<uint8_t>(static_cast<uint16_t>(s.b) * s.brightness / 255 * scale / 255);
@@ -552,14 +582,24 @@ void LedManager::fx_comet(StripState& s)
 {
     if (s.active_len == 0) return;
 
+    // Advance head every tick, bouncing at each end
+    if (s.wipe_fill) {
+        if (s.chase_pos < s.active_len - 1) s.chase_pos++;
+        else                                 s.wipe_fill = false;
+    } else {
+        if (s.chase_pos > 0) s.chase_pos--;
+        else                 s.wipe_fill = true;
+    }
+
     for (uint16_t i = 0; i < s.max_len; i++)
         led_strip_set_pixel(s.handle, i, 0, 0, 0);
 
-    int head = static_cast<int>(s.phase % s.active_len);
+    int head = static_cast<int>(s.chase_pos);
+    int dir  = s.wipe_fill ? 1 : -1;
     static constexpr int TAIL_LEN = 8;
     for (int tail = 0; tail < TAIL_LEN; tail++) {
-        int pos = head - tail;
-        if (pos < 0) pos += s.active_len;
+        int pos = head - dir * tail;
+        if (pos < 0 || pos >= static_cast<int>(s.active_len)) break;
         float fade = 1.0f - static_cast<float>(tail) / TAIL_LEN;
         uint8_t rs = static_cast<uint8_t>(s.r * fade * s.brightness / 255.0f);
         uint8_t gs = static_cast<uint8_t>(s.g * fade * s.brightness / 255.0f);

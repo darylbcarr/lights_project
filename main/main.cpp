@@ -762,6 +762,7 @@ extern "C" void app_main()
 
     // ── 4a. Web server — starts HTTP + WebSocket on port 80 ──────────────────
     s_webserver.set_ota(&s_ota);
+    s_webserver.set_matter(&s_matter);
     s_webserver.start();
 
     // ── 4b. OTA update checker — background task, waits for WiFi then polls ──

@@ -360,6 +360,8 @@ input[type=range]::-webkit-slider-thumb {
       <div class="info-item"><div class="info-label">Gateway</div><div class="info-val" id="inf-gw">—</div></div>
       <div class="info-item"><div class="info-label">Internet IP</div><div class="info-val" id="inf-eip">—</div></div>
       <div class="info-item"><div class="info-label">Location</div><div class="info-val" id="inf-geo">—</div></div>
+      <div class="info-item"><div class="info-label">Matter</div><div class="info-val" id="inf-matter-commissioned">—</div></div>
+      <div class="info-item"><div class="info-label">Fabrics</div><div class="info-val" id="inf-matter-fabrics">—</div></div>
     </div>
   </div>
 
@@ -881,6 +883,8 @@ function applyData(d) {
   setText('inf-eip', d.external_ip || '—');
   const geo = [d.city, d.region, d.isp].filter(Boolean).join(' · ');
   setText('inf-geo', geo || '—');
+  if (d.matter_commissioned !== undefined) setText('inf-matter-commissioned', d.matter_commissioned ? 'Yes' : 'No');
+  if (d.matter_fabric_count !== undefined) setText('inf-matter-fabrics', d.matter_fabric_count);
 
   // Strip info
   function stripInfoHTML(s) {

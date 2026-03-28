@@ -2,6 +2,7 @@
 #include "web_ui.h"
 #include "led_manager.h"
 #include "ota_manager.h"
+#include "matter_bridge.h"
 #include "config_store.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -514,6 +515,12 @@ char* WebServer::build_status_json()
     cJSON_AddBoolToObject  (root, "ota_auto",     ota_ ? ota_->is_auto_update_enabled()    : true);
     cJSON_AddBoolToObject  (root, "ota_avail",    ota_ ? ota_->is_update_available()       : false);
     cJSON_AddBoolToObject  (root, "ota_checking", ota_ ? ota_->is_checking()               : false);
+
+    // Matter
+    if (matter_) {
+        cJSON_AddBoolToObject  (root, "matter_commissioned", matter_->is_commissioned());
+        cJSON_AddNumberToObject(root, "matter_fabric_count", matter_->fabric_count());
+    }
 
     // Network / WiFi
     cJSON_AddStringToObject(root, "mdns_hostname", net.mdns_hostname);

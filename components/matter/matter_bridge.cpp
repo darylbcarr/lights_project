@@ -465,6 +465,11 @@ bool MatterBridge::is_commissioned() const
     return chip::Server::GetInstance().GetFabricTable().FabricCount() > 0;
 }
 
+uint8_t MatterBridge::fabric_count() const
+{
+    return chip::Server::GetInstance().GetFabricTable().FabricCount();
+}
+
 // ── disable_ble_advertising ───────────────────────────────────────────────────
 
 void MatterBridge::disable_ble_advertising()
