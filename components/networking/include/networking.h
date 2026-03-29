@@ -1,5 +1,7 @@
 #pragma once
 
+class EventLog;  // forward declaration — avoids header dependency
+
 /**
  * @file networking.h
  * @brief WiFi station, SNTP time sync, IP geolocation, and network status
@@ -108,6 +110,9 @@ public:
      */
     void set_matter_commissioned(bool commissioned) { matter_commissioned_ = commissioned; }
 
+    /** Wire in an EventLog to receive WiFi/SNTP startup events. Call before begin(). */
+    void set_event_log(EventLog* log) { event_log_ = log; }
+
     /**
      * @brief Live-update the mDNS hostname after begin() — no restart needed.
      *        Sends goodbye for old name and announces the new one immediately.
@@ -153,6 +158,7 @@ private:
     bool begun_               = false;  // guards against double-call from Matter path
     bool matter_commissioned_ = false;  // set by main before begin(); enables mDNS on Matter path
     bool mdns_delegate_mode_  = false;  // true when Matter owns mDNS and we use a delegate hostname
+    EventLog* event_log_      = nullptr;
 
     // Module-static pointer so the SNTP callback (C linkage) can reach us
     static Networking* s_instance_;

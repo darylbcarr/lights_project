@@ -5,6 +5,7 @@ idf_component_register(
     INCLUDE_DIRS
         "include"
     REQUIRES
+        event_log
         esp_wifi
         esp_coex
         esp_event

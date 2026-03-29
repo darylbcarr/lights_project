@@ -5,6 +5,7 @@ idf_component_register(
     INCLUDE_DIRS
         "."
     REQUIRES
+        event_log
         networking
         display
         menu

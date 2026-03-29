@@ -61,6 +61,7 @@
 #include "config_store.h"
 #include "matter_bridge.h"
 #include "ota_manager.h"
+#include "event_log.h"
 #include "esp_ota_ops.h"
 
 static const char* TAG = "main";
@@ -415,6 +416,12 @@ extern "C" void app_main()
     ConfigStore::load(ledCfg);
     ConfigStore::load(netCfg);
 
+    // ── 0b. Event log — init early so startup events are captured ────────────
+    EventLog::instance().init();
+    EventLog::instance().log(EventLog::CAT_STARTUP, "Boot: FW v%s  heap=%luKB",
+                             OtaManager::running_version(),
+                             (unsigned long)(esp_get_free_heap_size() / 1024));
+
     // Per-strip hardware defaults for new installations (len==0 means never saved).
     if (ledCfg.strip[0].len == 0) ledCfg.strip[0].len = 30;  // Left
     if (ledCfg.strip[1].len == 0) ledCfg.strip[1].len = 30;  // Right
@@ -485,6 +492,11 @@ extern "C" void app_main()
     s_menu.set_ota(&s_ota);
     ESP_LOGI(TAG, "Building menu...");
     s_menu.build(s_net, s_leds);
+
+    // ── 3b. Wire EventLog into components that need it ───────────────────────
+    s_net.set_event_log(&EventLog::instance());
+    s_matter.set_event_log(&EventLog::instance());
+    s_webserver.set_event_log(&EventLog::instance());
 
     // ── 4. Matter stack — init already done; populate pairing info before setup ─
     // ensure_unique_discriminator() runs inside start(), so the real discriminator
@@ -763,7 +775,9 @@ extern "C" void app_main()
     // ── 4a. Web server — starts HTTP + WebSocket on port 80 ──────────────────
     s_webserver.set_ota(&s_ota);
     s_webserver.set_matter(&s_matter);
+    // event_log already wired above (step 3b)
     s_webserver.start();
+    EventLog::instance().log(EventLog::CAT_STARTUP, "Web server started");
 
     // ── 4b. OTA update checker — background task, waits for WiFi then polls ──
     // Skip during Matter first-time commissioning: BLE + WiFi + Matter already

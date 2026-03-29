@@ -4,6 +4,7 @@
 #include "ota_manager.h"
 #include "matter_bridge.h"
 #include "config_store.h"
+#include "event_log.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
@@ -57,7 +58,9 @@ void WebServer::start()
     httpd_uri_t stat    = { "/api/status",         HTTP_GET,  on_api_status,       this };
     httpd_uri_t cmd     = { "/api/cmd",            HTTP_POST, on_api_cmd,          this };
     httpd_uri_t cfg_uri = { "/api/cfg",            HTTP_POST, on_api_cfg,          this };
-    httpd_uri_t ota_uri = { "/api/ota",            HTTP_POST, on_api_ota,          this };
+    httpd_uri_t ota_uri  = { "/api/ota",  HTTP_POST, on_api_ota,       this };
+    httpd_uri_t logs_get = { "/api/logs", HTTP_GET,  on_api_logs_get,  this };
+    httpd_uri_t logs_post= { "/api/logs", HTTP_POST, on_api_logs_post, this };
     httpd_uri_t ws   = {
         .uri      = "/ws",
         .method   = HTTP_GET,
@@ -71,6 +74,8 @@ void WebServer::start()
     httpd_register_uri_handler(server_, &cmd);
     httpd_register_uri_handler(server_, &cfg_uri);
     httpd_register_uri_handler(server_, &ota_uri);
+    httpd_register_uri_handler(server_, &logs_get);
+    httpd_register_uri_handler(server_, &logs_post);
     httpd_register_uri_handler(server_, &ws);
 
     xTaskCreate(ws_push_task,  "ws_push",  4096, this, 2, &ws_task_handle_);
@@ -142,10 +147,16 @@ esp_err_t WebServer::on_api_cmd(httpd_req_t* req)
         cJSON* gj = cJSON_GetObjectItem(body, "g");
         cJSON* bj = cJSON_GetObjectItem(body, "b");
         if (cJSON_IsNumber(rj) && cJSON_IsNumber(gj) && cJSON_IsNumber(bj)) {
-            self->leds_.set_color(tgt,
-                (uint8_t)rj->valueint,
-                (uint8_t)gj->valueint,
-                (uint8_t)bj->valueint);
+            uint8_t r = (uint8_t)rj->valueint;
+            uint8_t g = (uint8_t)gj->valueint;
+            uint8_t b = (uint8_t)bj->valueint;
+            self->leds_.set_color(tgt, r, g, b);
+            if (self->event_log_) {
+                const char* ts = (tgt == LedManager::Target::STRIP_1) ? "Strip1" :
+                                 (tgt == LedManager::Target::STRIP_2) ? "Strip2" : "Both";
+                self->event_log_->log(EventLog::CAT_LED_WEB,
+                                      "Color: RGB(%u,%u,%u) → %s", r, g, b, ts);
+            }
             return true;
         }
         return false;
@@ -155,7 +166,14 @@ esp_err_t WebServer::on_api_cmd(httpd_req_t* req)
     auto handle_bright = [&](LedManager::Target tgt) -> bool {
         cJSON* bj = cJSON_GetObjectItem(body, "brightness");
         if (cJSON_IsNumber(bj)) {
-            self->leds_.set_brightness(tgt, (uint8_t)bj->valueint);
+            uint8_t val = (uint8_t)bj->valueint;
+            self->leds_.set_brightness(tgt, val);
+            if (self->event_log_) {
+                const char* ts = (tgt == LedManager::Target::STRIP_1) ? "Strip1" :
+                                 (tgt == LedManager::Target::STRIP_2) ? "Strip2" : "Both";
+                self->event_log_->log(EventLog::CAT_LED_WEB,
+                                      "Bright: %u%% → %s", val * 100u / 255u, ts);
+            }
             return true;
         }
         return false;
@@ -478,7 +496,84 @@ void WebServer::dispatch_cmd(const char* cmd)
     // Persist LED state after any LED command (effects, brightness, next)
     if (strncmp(cmd, "led", 3) == 0) {
         save_led_config();
+
+        // Log LED-web events (colors are logged inline in on_api_cmd)
+        if (event_log_ && strstr(cmd, "-color") == nullptr) {
+            const char* tgt = (strncmp(cmd, "led1-", 5) == 0) ? "Strip1" :
+                              (strncmp(cmd, "led2-", 5) == 0) ? "Strip2" : "Both";
+            int idx = (strncmp(cmd, "led1-", 5) == 0) ? 0 :
+                      (strncmp(cmd, "led2-", 5) == 0) ? 1 : 0;
+            if (strstr(cmd, "bright")) {
+                event_log_->log(EventLog::CAT_LED_WEB, "Bright: %u%% → %s",
+                                leds_.get_brightness(idx) * 100u / 255u, tgt);
+            } else {
+                event_log_->log(EventLog::CAT_LED_WEB, "%s → %s",
+                                LedManager::effect_name(leds_.get_effect(idx)), tgt);
+            }
+        }
     }
+}
+
+// ── Event log endpoints ───────────────────────────────────────────────────────
+
+// GET /api/logs
+esp_err_t WebServer::on_api_logs_get(httpd_req_t* req)
+{
+    auto* self = static_cast<WebServer*>(req->user_ctx);
+    if (!self->event_log_) {
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+        return httpd_resp_send(req, "{\"cats\":{\"startup\":false,\"led_web\":false,\"led_matter\":false},\"entries\":[]}",
+                               HTTPD_RESP_USE_STRLEN);
+    }
+    char* json = self->event_log_->get_json();
+    if (!json) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OOM");
+        return ESP_FAIL;
+    }
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    esp_err_t ret = httpd_resp_send(req, json, strlen(json));
+    free(json);
+    return ret;
+}
+
+// POST /api/logs  — body: {"startup":bool,"led_web":bool,"led_matter":bool,"clear":bool}
+// All fields are optional; only present fields are applied.
+esp_err_t WebServer::on_api_logs_post(httpd_req_t* req)
+{
+    auto* self = static_cast<WebServer*>(req->user_ctx);
+
+    char buf[128] = {};
+    int len = httpd_req_recv(req, buf, sizeof(buf) - 1);
+    if (len <= 0) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No body");
+        return ESP_FAIL;
+    }
+
+    cJSON* body = cJSON_Parse(buf);
+    if (!body) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Bad JSON");
+        return ESP_FAIL;
+    }
+
+    if (self->event_log_) {
+        auto& el = *self->event_log_;
+        cJSON* j;
+        if ((j = cJSON_GetObjectItem(body, "startup"))    && cJSON_IsBool(j))
+            el.set_category_enabled(EventLog::CAT_STARTUP,    cJSON_IsTrue(j));
+        if ((j = cJSON_GetObjectItem(body, "led_web"))    && cJSON_IsBool(j))
+            el.set_category_enabled(EventLog::CAT_LED_WEB,    cJSON_IsTrue(j));
+        if ((j = cJSON_GetObjectItem(body, "led_matter")) && cJSON_IsBool(j))
+            el.set_category_enabled(EventLog::CAT_LED_MATTER, cJSON_IsTrue(j));
+        if ((j = cJSON_GetObjectItem(body, "clear")) && cJSON_IsTrue(j))
+            el.clear();
+    }
+
+    cJSON_Delete(body);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    return httpd_resp_send(req, "{\"ok\":true}", HTTPD_RESP_USE_STRLEN);
 }
 
 // ── JSON status builder ───────────────────────────────────────────────────────

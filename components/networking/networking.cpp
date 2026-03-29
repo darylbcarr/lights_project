@@ -5,6 +5,7 @@
 
 #include "networking.h"
 #include "tz_lookup.h"
+#include "event_log.h"
 
 #include <cstring>
 #include <cstdio>
@@ -257,6 +258,9 @@ void Networking::s_sntp_sync_cb(struct timeval* /*tv*/)
     if (s_instance_) {
         s_instance_->status_.sntp_synced = true;
         ESP_LOGI(TAG, "SNTP synchronised");
+        if (s_instance_->event_log_) {
+            s_instance_->event_log_->log(EventLog::CAT_STARTUP, "SNTP: time synced");
+        }
     }
 }
 
@@ -278,6 +282,11 @@ void Networking::on_got_ip(esp_netif_ip_info_t* ip_info)
 
     ESP_LOGI(TAG, "Got IP  local=%s  gw=%s  ssid=%s  rssi=%d dBm",
              status_.local_ip, status_.gateway, status_.ssid, status_.rssi);
+
+    if (event_log_) {
+        event_log_->log(EventLog::CAT_STARTUP, "WiFi: %s  IP=%s",
+                        status_.ssid, status_.local_ip);
+    }
 
     // WiFi connected — restore balanced coex so BLE/Matter-over-IP coexist fairly
     if (ssid_[0] == '\0') {
@@ -315,6 +324,9 @@ void Networking::on_wifi_disconnected()
 
     ESP_LOGW(TAG, "WiFi disconnected (retry %d/%d)",
              retry_count_, MAX_RETRY);
+    if (event_log_) {
+        event_log_->log(EventLog::CAT_STARTUP, "WiFi: disconnected");
+    }
 
     if (retry_count_ < MAX_RETRY) {
         ++retry_count_;

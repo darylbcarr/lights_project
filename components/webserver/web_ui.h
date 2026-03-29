@@ -243,6 +243,18 @@ input[type=range]::-webkit-slider-thumb {
 .offset-ctrl { display: flex; align-items: center; gap: 8px; }
 .offset-val { font-size: 20px; font-weight: 300; min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
 
+/* ── Log table ── */
+.log-table { width: 100%; border-collapse: collapse; }
+.log-table td { padding: 3px 6px; border-bottom: 1px solid var(--border); vertical-align: top; font-family: monospace; font-size: 12px; }
+.log-table tr:last-child td { border-bottom: none; }
+.log-ts  { color: var(--a); white-space: nowrap; width: 76px; }
+.log-cat { white-space: nowrap; width: 56px; font-weight: 600; }
+.log-cat-startup { color: var(--ok); }
+.log-cat-web     { color: var(--warn); }
+.log-cat-matter  { color: var(--dim); }
+.log-msg { word-break: break-all; color: var(--text); }
+.log-empty { color: var(--muted); font-size: 12px; padding: 8px 0; font-style: italic; }
+
 /* ── Toast ── */
 #toast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(60px);
@@ -265,6 +277,7 @@ input[type=range]::-webkit-slider-thumb {
     <button class="nav-btn active" onclick="nav('lights')">Lights</button>
     <button class="nav-btn" onclick="nav('info')">Info</button>
     <button class="nav-btn" onclick="nav('config')">Config</button>
+    <button class="nav-btn" onclick="nav('logs');fetchLogs()">Logs</button>
   </div>
   <button id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark">&#9788;</button>
   <div class="accent-dots">
@@ -284,6 +297,7 @@ input[type=range]::-webkit-slider-thumb {
   <button class="nav-btn active" onclick="nav('lights');closeMobileMenu()">Lights</button>
   <button class="nav-btn" onclick="nav('info');closeMobileMenu()">Info</button>
   <button class="nav-btn" onclick="nav('config');closeMobileMenu()">Config</button>
+  <button class="nav-btn" onclick="nav('logs');fetchLogs();closeMobileMenu()">Logs</button>
   <div class="mob-divider"></div>
   <div class="mob-row">
     <label>Theme</label>
@@ -512,6 +526,34 @@ input[type=range]::-webkit-slider-thumb {
   </div>
 
 </div><!-- /sec-config -->
+
+<!-- ════════════════════════════════════ LOGS ════════════════════════════ -->
+<div id="sec-logs" class="section">
+
+  <!-- Category toggles -->
+  <div class="card">
+    <div class="card-title">Log Categories</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">All categories are off by default. Enable to start recording events.</p>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="fx-btn" id="lc-startup" onclick="toggleLogCat('startup','lc-startup')">&#9679; Startup</button>
+      <button class="fx-btn" id="lc-ledweb"  onclick="toggleLogCat('led_web','lc-ledweb')">&#9679; Web Control</button>
+      <button class="fx-btn" id="lc-matter"  onclick="toggleLogCat('led_matter','lc-matter')">&#9679; Matter Control</button>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="btn btn-secondary btn-sm" onclick="fetchLogs()">Refresh</button>
+      <button class="btn btn-secondary btn-sm" onclick="clearLogs()">Clear All</button>
+    </div>
+  </div>
+
+  <!-- Log entries -->
+  <div class="card">
+    <div class="card-title">Events <span id="log-count" style="color:var(--muted);font-weight:400;font-size:10px;"></span></div>
+    <div id="log-entries"><div class="log-empty">No entries — enable a category above to start logging.</div></div>
+  </div>
+
+</div><!-- /sec-logs -->
 </div><!-- /main -->
 
 <div id="toast"></div>
@@ -930,6 +972,93 @@ function applyData(d) {
   }
 
 }
+
+// ── Logs ──────────────────────────────────────────────────────────────────────
+
+function fetchLogs() {
+  fetch('/api/logs')
+    .then(r => r.json())
+    .then(renderLogs)
+    .catch(() => {});
+}
+
+function renderLogs(data) {
+  // Sync category toggle button states
+  if (data.cats) {
+    syncLogCatBtn('lc-startup', data.cats.startup);
+    syncLogCatBtn('lc-ledweb',  data.cats.led_web);
+    syncLogCatBtn('lc-matter',  data.cats.led_matter);
+  }
+
+  const container = document.getElementById('log-entries');
+  if (!data.entries || data.entries.length === 0) {
+    container.innerHTML = '<div class="log-empty">No entries yet.</div>';
+    setText('log-count', '');
+    return;
+  }
+
+  setText('log-count', '(' + data.entries.length + ' / 100)');
+
+  let html = '<table class="log-table"><tbody>';
+  data.entries.forEach(function(e) {
+    const catClass = e.cat === 'Startup' ? 'log-cat-startup' :
+                     e.cat === 'Web'     ? 'log-cat-web'     : 'log-cat-matter';
+    html += '<tr>'
+          + '<td class="log-ts">'  + escHtml(e.ts)  + '</td>'
+          + '<td class="log-cat ' + catClass + '">' + escHtml(e.cat) + '</td>'
+          + '<td class="log-msg">' + escHtml(e.msg) + '</td>'
+          + '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function syncLogCatBtn(id, enabled) {
+  document.getElementById(id).classList.toggle('active', enabled);
+}
+
+function toggleLogCat(cat, id) {
+  const enabled = !document.getElementById(id).classList.contains('active');
+  const body = {};
+  body[cat] = enabled;
+  fetch('/api/logs', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  })
+  .then(r => r.json())
+  .then(function(d) {
+    if (d.ok) {
+      syncLogCatBtn(id, enabled);
+      toast((enabled ? 'Logging on' : 'Logging off') + ': ' + cat.replace('_',' '));
+      fetchLogs();
+    }
+  })
+  .catch(function() { toast('Error', 'err'); });
+}
+
+function clearLogs() {
+  fetch('/api/logs', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({clear: true})
+  })
+  .then(function() { fetchLogs(); toast('Log cleared'); })
+  .catch(function() { toast('Error', 'err'); });
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+
+// Auto-refresh logs every 5 s when the Logs tab is active
+setInterval(function() {
+  const sec = document.getElementById('sec-logs');
+  if (sec && sec.classList.contains('active')) fetchLogs();
+}, 5000);
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 function connectWS() {

@@ -5,6 +5,7 @@
  */
 
 #include "matter_bridge.h"
+#include "event_log.h"
 #include <esp_log.h>
 #include <esp_matter_core.h>
 #include <app/server/Server.h>
@@ -41,11 +42,14 @@ static constexpr uint32_t ATTR_COLOR_MODE= 0x0008;  ///< ColorControl::ColorMode
 
 static const char* TAG = "MatterBridge";
 
+MatterBridge* MatterBridge::s_instance_ = nullptr;
+
 // ── Constructor ───────────────────────────────────────────────────────────────
 
 MatterBridge::MatterBridge(LedManager& leds)
     : leds_(leds)
 {
+    s_instance_ = this;
 }
 
 // ── init ──────────────────────────────────────────────────────────────────────
@@ -252,6 +256,7 @@ esp_err_t MatterBridge::start(bool fresh_commissioning)
 void MatterBridge::apply()
 {
     if (!ep_.on) {
+        if (event_log_) event_log_->log(EventLog::CAT_LED_MATTER, "Off");
         leds_.set_brightness(LedManager::Target::STRIP_1, 0);
         leds_.set_brightness(LedManager::Target::STRIP_2, 0);
         leds_.set_effect(LedManager::Target::STRIP_1, LedManager::Effect::STATIC);
@@ -276,6 +281,10 @@ void MatterBridge::apply()
     static const char* mode_str[] = { "HS", "XY", "CT" };
     ESP_LOGI(TAG, "[%s] → RGB(%u,%u,%u) bri=%u",
              mode_str[ep_.color_mode & 0x03], r, g, b, ep_.level);
+    if (event_log_) {
+        event_log_->log(EventLog::CAT_LED_MATTER, "[%s] RGB(%u,%u,%u) bri=%u",
+                        mode_str[ep_.color_mode & 0x03], r, g, b, ep_.level);
+    }
     leds_.set_effect(LedManager::Target::STRIP_1, LedManager::Effect::STATIC);
     leds_.set_effect(LedManager::Target::STRIP_2, LedManager::Effect::STATIC);
     leds_.set_color(LedManager::Target::STRIP_1, r, g, b);
@@ -351,9 +360,13 @@ void MatterBridge::event_cb(
     switch (event->Type) {
         case DeviceEventType::kCHIPoBLEConnectionEstablished:
             ESP_LOGD(TAG, "BLE connection established");
+            if (s_instance_ && s_instance_->event_log_)
+                s_instance_->event_log_->log(EventLog::CAT_STARTUP, "Matter: BLE connected");
             break;
         case DeviceEventType::kCHIPoBLEConnectionClosed:
             ESP_LOGI(TAG, "BLE connection closed — resetting WiFi driver for reconnect");
+            if (s_instance_ && s_instance_->event_log_)
+                s_instance_->event_log_->log(EventLog::CAT_STARTUP, "Matter: BLE closed");
             // During BLE commissioning the coex module repeatedly fails the
             // WiFi 4-way handshake ("Coexist: Wi-Fi connect fail") and leaves
             // the driver in a pending-reconnect state where every subsequent
@@ -405,15 +418,21 @@ void MatterBridge::event_cb(
         }
         case DeviceEventType::kCHIPoBLEConnectionError:
             ESP_LOGW(TAG, "BLE connection error");
+            if (s_instance_ && s_instance_->event_log_)
+                s_instance_->event_log_->log(EventLog::CAT_STARTUP, "Matter: BLE error");
             break;
         case DeviceEventType::kCommissioningComplete:
             ESP_LOGI(TAG, "Matter commissioning complete");
+            if (s_instance_ && s_instance_->event_log_)
+                s_instance_->event_log_->log(EventLog::CAT_STARTUP, "Matter: commissioned");
             break;
         case DeviceEventType::kFailSafeTimerExpired:
             ESP_LOGD(TAG, "Fail-safe timer expired");
             break;
         case DeviceEventType::kFabricRemoved:
             ESP_LOGW(TAG, "Matter fabric removed — ready to recommission");
+            if (s_instance_ && s_instance_->event_log_)
+                s_instance_->event_log_->log(EventLog::CAT_STARTUP, "Matter: fabric removed");
             break;
         default:
             break;

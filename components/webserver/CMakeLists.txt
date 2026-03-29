@@ -1,7 +1,7 @@
 idf_component_register(
     SRCS "webserver.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES esp_http_server networking led ota_manager config_store json freertos log esp_timer matter
+    REQUIRES esp_http_server networking led ota_manager config_store event_log json freertos log esp_timer matter
 )
 
 set(CMAKE_CXX_STANDARD 17)
