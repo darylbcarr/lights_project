@@ -256,9 +256,10 @@ void Networking::s_ip_event_handler(void* arg, esp_event_base_t /*base*/,
 void Networking::s_sntp_sync_cb(struct timeval* /*tv*/)
 {
     if (s_instance_) {
+        const bool first_sync = !s_instance_->status_.sntp_synced;
         s_instance_->status_.sntp_synced = true;
         ESP_LOGI(TAG, "SNTP synchronised");
-        if (s_instance_->event_log_) {
+        if (first_sync && s_instance_->event_log_) {
             s_instance_->event_log_->log(EventLog::CAT_STARTUP, "SNTP: time synced");
         }
     }

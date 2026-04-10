@@ -9,9 +9,23 @@
 #include <cstring>
 #include <ctime>
 
-static const char* TAG     = "event_log";
-static const char* NVS_NS  = "clk_cfg";
-static const char* NVS_KEY = "log_cats";  ///< uint8 bitmask: bit0=startup, bit1=led_web, bit2=led_matter
+static const char* TAG          = "event_log";
+static const char* NVS_NS       = "clk_cfg";
+static const char* NVS_KEY      = "log_cats";  ///< uint8 bitmask: bit0=startup, bit1=led_web, bit2=led_matter
+static const char* NVS_KEY_BUF  = "log_buf";   ///< packed ring-buffer blob
+
+// Compact on-disk entry — avoids time_t size ambiguity and alignment padding.
+// Must stay in sync with EventLog::MSG_LEN (72) and MAX_ENTRIES (100).
+struct __attribute__((packed)) SavedEntry {
+    uint32_t unix_ts;   // seconds since epoch; 0 = SNTP not synced at log time
+    uint8_t  category;
+    char     msg[72];
+};
+struct __attribute__((packed)) SavedBlob {
+    uint8_t      count;
+    uint8_t      head;
+    SavedEntry   entries[100];
+};
 
 // ── Singleton ─────────────────────────────────────────────────────────────────
 
@@ -41,6 +55,7 @@ esp_err_t EventLog::init()
 
     ESP_LOGI(TAG, "init: startup=%d led_web=%d led_matter=%d",
              cat_enabled_[0], cat_enabled_[1], cat_enabled_[2]);
+    load_entries();
     return ESP_OK;
 }
 
@@ -66,6 +81,8 @@ void EventLog::log(Category cat, const char* fmt, ...)
     head_ = (head_ + 1) % MAX_ENTRIES;
     if (count_ < MAX_ENTRIES) count_++;
     xSemaphoreGive(mutex_);
+
+    save_entries();
 }
 
 // ── set_category_enabled ──────────────────────────────────────────────────────
@@ -87,7 +104,59 @@ void EventLog::clear()
     head_  = 0;
     count_ = 0;
     xSemaphoreGive(mutex_);
+    save_entries();
     ESP_LOGI(TAG, "log cleared");
+}
+
+// ── save_entries / load_entries ───────────────────────────────────────────────
+
+void EventLog::save_entries() const
+{
+    auto* blob = static_cast<SavedBlob*>(malloc(sizeof(SavedBlob)));
+    if (!blob) { ESP_LOGW(TAG, "save_entries: out of memory"); return; }
+
+    xSemaphoreTake(mutex_, portMAX_DELAY);
+    blob->count = (uint8_t)count_;
+    blob->head  = (uint8_t)head_;
+    for (int i = 0; i < MAX_ENTRIES; i++) {
+        blob->entries[i].unix_ts  = (uint32_t)entries_[i].unix_ts;
+        blob->entries[i].category = entries_[i].category;
+        memcpy(blob->entries[i].msg, entries_[i].msg, MSG_LEN);
+    }
+    xSemaphoreGive(mutex_);
+
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_blob(h, NVS_KEY_BUF, blob, sizeof(SavedBlob));
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    free(blob);
+}
+
+void EventLog::load_entries()
+{
+    auto* blob = static_cast<SavedBlob*>(malloc(sizeof(SavedBlob)));
+    if (!blob) { ESP_LOGW(TAG, "load_entries: out of memory"); return; }
+
+    size_t sz = sizeof(SavedBlob);
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READONLY, &h) != ESP_OK) { free(blob); return; }
+    esp_err_t err = nvs_get_blob(h, NVS_KEY_BUF, blob, &sz);
+    nvs_close(h);
+
+    if (err != ESP_OK || sz != sizeof(SavedBlob)) { free(blob); return; }
+
+    count_ = blob->count;
+    head_  = blob->head;
+    for (int i = 0; i < MAX_ENTRIES; i++) {
+        entries_[i].uptime_s = 0;  // previous boot's uptime is meaningless
+        entries_[i].unix_ts  = (time_t)blob->entries[i].unix_ts;
+        entries_[i].category = blob->entries[i].category;
+        memcpy(entries_[i].msg, blob->entries[i].msg, MSG_LEN);
+    }
+    free(blob);
+    ESP_LOGI(TAG, "Restored %d log entries from NVS", count_);
 }
 
 // ── save_enables ──────────────────────────────────────────────────────────────

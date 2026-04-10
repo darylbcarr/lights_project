@@ -243,6 +243,18 @@ input[type=range]::-webkit-slider-thumb {
 .offset-ctrl { display: flex; align-items: center; gap: 8px; }
 .offset-val { font-size: 20px; font-weight: 300; min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
 
+/* ── Log category filter buttons ── */
+.log-cat-btn { border-radius: 999px; }
+.log-cat-btn#lc-startup        { color: var(--ok);   border-color: var(--ok);  }
+.log-cat-btn#lc-startup:hover  { color: var(--ok);   border-color: var(--ok);  background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.log-cat-btn#lc-startup.active { color: var(--ok);   border-color: var(--ok);  background: color-mix(in srgb, var(--ok) 18%, transparent); }
+.log-cat-btn#lc-ledweb         { color: var(--warn); border-color: var(--warn);}
+.log-cat-btn#lc-ledweb:hover   { color: var(--warn); border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.log-cat-btn#lc-ledweb.active  { color: var(--warn); border-color: var(--warn); background: color-mix(in srgb, var(--warn) 18%, transparent); }
+.log-cat-btn#lc-matter         { color: var(--dim);  border-color: var(--dim); }
+.log-cat-btn#lc-matter:hover   { color: var(--dim);  border-color: var(--dim);  background: color-mix(in srgb, var(--dim) 12%, transparent); }
+.log-cat-btn#lc-matter.active  { color: var(--dim);  border-color: var(--dim);  background: color-mix(in srgb, var(--dim) 18%, transparent); }
+
 /* ── Log table ── */
 .log-table { width: 100%; border-collapse: collapse; }
 .log-table td { padding: 3px 6px; border-bottom: 1px solid var(--border); vertical-align: top; font-family: monospace; font-size: 12px; }
@@ -536,9 +548,9 @@ input[type=range]::-webkit-slider-thumb {
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">All categories are off by default. Enable to start recording events.</p>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="fx-btn" id="lc-startup" onclick="toggleLogCat('startup','lc-startup')">&#9679; Startup</button>
-      <button class="fx-btn" id="lc-ledweb"  onclick="toggleLogCat('led_web','lc-ledweb')">&#9679; Web Control</button>
-      <button class="fx-btn" id="lc-matter"  onclick="toggleLogCat('led_matter','lc-matter')">&#9679; Matter Control</button>
+      <button class="fx-btn log-cat-btn" id="lc-startup" onclick="toggleLogCat('startup','lc-startup')">Startup</button>
+      <button class="fx-btn log-cat-btn" id="lc-ledweb"  onclick="toggleLogCat('led_web','lc-ledweb')">Web Control</button>
+      <button class="fx-btn log-cat-btn" id="lc-matter"  onclick="toggleLogCat('led_matter','lc-matter')">Matter Control</button>
     </div>
 
     <div style="display:flex;gap:8px;margin-top:14px;">

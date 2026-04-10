@@ -66,4 +66,6 @@ private:
     mutable SemaphoreHandle_t mutex_ = nullptr;
 
     void save_enables() const;
+    void save_entries() const;  ///< Persist ring buffer to NVS.
+    void load_entries();        ///< Restore ring buffer from NVS on boot.
 };
